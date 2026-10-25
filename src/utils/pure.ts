@@ -243,3 +243,13 @@ export function mapTicketsToMasonryItems(tickets: TicketStub[]): Array<{
     };
   });
 }
+
+/**
+ * Frame-budgeted exponential decay / lerp step for decoupled rAF animation loops
+ */
+export function dampSpringStep(current: number, target: number, tau: number, dt: number): number {
+  const safeDt = Math.max(0, dt);
+  const factor = 1 - Math.exp(-safeDt / Math.max(tau, 0.001));
+  return current + (target - current) * factor;
+}
+

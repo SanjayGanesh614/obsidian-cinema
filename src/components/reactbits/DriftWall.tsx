@@ -83,8 +83,12 @@ export const DriftWall: React.FC<DriftWallProps> = ({
   const lastTsRef = useRef<number | null>(null);
 
   const [containerHeight, setContainerHeight] = useState(600);
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const activeIdRef = useRef<string | null>(null);
+  const rectRef = useRef<{ left: number; top: number; width: number; height: number }>({
+    left: 0,
+    top: 0,
+    width: 1,
+    height: 1,
+  });
   const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
@@ -113,11 +117,28 @@ export const DriftWall: React.FC<DriftWallProps> = ({
 
   useLayoutEffect(() => {
     if (!containerRef.current) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setContainerHeight(entry.contentRect.height || 600);
-    });
+    const updateRect = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      rectRef.current = {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width || 1,
+        height: rect.height || 1,
+      };
+      setContainerHeight(rect.height || 600);
+    };
+
+    updateRect();
+    const ro = new ResizeObserver(updateRect);
     ro.observe(containerRef.current);
-    return () => ro.disconnect();
+    window.addEventListener('resize', updateRect, { passive: true });
+    window.addEventListener('scroll', updateRect, { passive: true });
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect);
+    };
   }, []);
 
   const baseVelocities = useMemo(() => {
@@ -194,44 +215,37 @@ export const DriftWall: React.FC<DriftWallProps> = ({
     };
   }, [baseVelocities, columnMeta, parallax, reduced, applyPlaneTransform]);
 
-  const activate = useCallback((id: string, index: number) => {
-    activeIdRef.current = id;
-    hoveredColRef.current = index;
-    setActiveId(id);
-  }, []);
-
-  const release = useCallback(() => {
-    activeIdRef.current = null;
-    hoveredColRef.current = -1;
-    setActiveId(null);
-  }, []);
-
+  // ponytail: Decoupled pointer handling without layout reads or state churn
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
       if (parallax > 0 && !reduced) {
-        pointerRef.current = {
-          x: (e.clientX - rect.left) / rect.width - 0.5,
-          y: (e.clientY - rect.top) / rect.height - 0.5,
-        };
+        const r = rectRef.current;
+        pointerRef.current.x = (e.clientX - r.left) / r.width - 0.5;
+        pointerRef.current.y = (e.clientY - r.top) / r.height - 0.5;
       }
-      const hit = document.elementFromPoint(e.clientX, e.clientY);
-      const tile = hit && (hit as HTMLElement).closest ? (hit as HTMLElement).closest('[data-tile-id]') : null;
-      if (!tile) return;
-      const id = (tile as HTMLElement).dataset.tileId;
-      if (!id || id === activeIdRef.current) return;
-      activeIdRef.current = id;
-      hoveredColRef.current = Number((tile as HTMLElement).dataset.col);
-      setActiveId(id);
     },
     [parallax, reduced]
   );
 
+  const handlePointerOver = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const tile = (e.target as HTMLElement).closest('[data-col]') as HTMLElement | null;
+    if (tile) {
+      const col = Number(tile.dataset.col);
+      if (!isNaN(col)) hoveredColRef.current = col;
+    }
+  }, []);
+
+  const handlePointerOut = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const tile = (e.target as HTMLElement).closest('[data-col]') as HTMLElement | null;
+    if (tile && !tile.contains(e.relatedTarget as Node | null)) {
+      hoveredColRef.current = -1;
+    }
+  }, []);
+
   const handlePointerLeaveWall = useCallback(() => {
     pointerRef.current = { x: 0, y: 0 };
-    release();
-  }, [release]);
+    hoveredColRef.current = -1;
+  }, []);
 
   const cssVars = useMemo(
     () => ({
@@ -253,7 +267,7 @@ export const DriftWall: React.FC<DriftWallProps> = ({
   const renderTile = (item: DriftItem, id: string, colIndex: number) => {
     const inner = (
       <span className="drift-wall__inner">
-        <img src={item.image} alt={item.title ?? ''} loading="lazy" decoding="async" draggable={false} />
+        <img src={item.image} alt={item.title ?? ''} loading="eager" decoding="async" draggable={false} />
         <span className="drift-wall__overlay" aria-hidden="true" />
         {item.title && (
           <span className="drift-wall__info">
@@ -278,11 +292,15 @@ export const DriftWall: React.FC<DriftWallProps> = ({
     };
 
     const commonProps = {
-      className: `drift-wall__tile${activeId === id ? ' is-active' : ''}`,
+      className: 'drift-wall__tile',
       'data-tile-id': id,
       'data-col': colIndex,
-      onFocus: () => activate(id, colIndex),
-      onBlur: release,
+      onFocus: () => {
+        hoveredColRef.current = colIndex;
+      },
+      onBlur: () => {
+        hoveredColRef.current = -1;
+      },
       onClick: handleClick,
     };
 
@@ -301,6 +319,8 @@ export const DriftWall: React.FC<DriftWallProps> = ({
       className={rootClass}
       style={cssVars}
       onPointerMove={handlePointerMove}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
       onPointerLeave={handlePointerLeaveWall}
       role="group"
       aria-label="Drifting wall of tiles"

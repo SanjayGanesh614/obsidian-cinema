@@ -210,9 +210,9 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
   items = DEFAULT_ITEMS,
   preset = 'liquid',
   intro = 'rise',
-  cardHeight = 0.5,
+  cardHeight = 0.65,
   gap = 12,
-  radius = 0,
+  radius = 20,
   fit = 'natural',
   lensWidth,
   lensHeight,
@@ -226,7 +226,7 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
   followCursor,
   squeeze = 0.2,
   focusOnClick = true,
-  autoplay = false,
+  autoplay = true,
   interval = 4,
   captions = true,
   captureWheel = true,
@@ -422,7 +422,7 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
         ready: 0,
         color: [0.5, 0.5, 0.5],
         image: [1, 1],
-        dispose: () => {}
+        dispose: () => { }
       };
 
       let cancelled = false;
@@ -598,9 +598,16 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       if (introState.done) setRevealed(true);
     };
 
+    let containerRect = { left: 0, top: 0 };
+    const updateRect = () => {
+      const r = container.getBoundingClientRect();
+      containerRect = { left: r.left, top: r.top };
+    };
+
     const resize = () => {
       width = Math.max(1, container.clientWidth);
       height = Math.max(1, container.clientHeight);
+      updateRect();
       renderer.dpr = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(PIXEL_BUDGET / (width * height)));
       renderer.setSize(width, height);
       target.setSize(Math.max(2, Math.round(width * renderer.dpr)), Math.max(2, Math.round(height * renderer.dpr)));
@@ -767,7 +774,11 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
           }
         }
         draws.sort((a, b) => Math.abs(b.rel) - Math.abs(a.rel));
-        let first = true;
+        // ponytail: Batch card draws in single framebuffer pass to eliminate redundant FBO binds and clears
+        renderer.bindFramebuffer(target);
+        renderer.setViewport(target.width, target.height);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
         for (const draw of draws) {
           const slot = slots[draw.i];
           cardProgram.uniforms.tMap.value = slot.texture;
@@ -778,8 +789,9 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
           cardProgram.uniforms.uReady.value = slot.ready;
           cardProgram.uniforms.uShift.value = reducedMotion ? 0 : Math.max(-1, Math.min(1, draw.rel / (width * 0.75)));
           cardProgram.uniforms.uPlaceholder.value = slot.color;
-          renderer.render({ scene: cardMesh, target, clear: first });
-          first = false;
+
+          cardMesh.draw();
+
           instances.push({
             index: draw.i,
             x0: draw.x - draw.cw / 2,
@@ -787,11 +799,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
             y0: draw.y - draw.ch / 2,
             y1: draw.y + draw.ch / 2
           });
-        }
-        if (first) {
-          renderer.bindFramebuffer(target);
-          gl.viewport(0, 0, target.width, target.height);
-          gl.clear(gl.COLOR_BUFFER_BIT);
         }
         renderer.bindFramebuffer();
         target.texture.bind();
@@ -825,9 +832,9 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       raf = requestAnimationFrame(frame);
     };
 
+    // ponytail: Decoupled local coordinate calculation without getBoundingClientRect
     const localPoint = (e: any) => {
-      const rect = container.getBoundingClientRect();
-      return [e.clientX - rect.left, e.clientY - rect.top];
+      return [e.clientX - containerRect.left, e.clientY - containerRect.top];
     };
 
     const onPointerDown = (e: any) => {
@@ -1006,16 +1013,17 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       if (!document.hidden) start();
     };
 
-    container.addEventListener('pointerdown', onPointerDown);
-    container.addEventListener('pointermove', onPointerMove);
-    container.addEventListener('pointerup', onPointerUp);
-    container.addEventListener('pointerleave', onPointerLeave);
-    container.addEventListener('pointercancel', onPointerCancel);
+    container.addEventListener('pointerdown', onPointerDown, { passive: true });
+    container.addEventListener('pointermove', onPointerMove, { passive: true });
+    container.addEventListener('pointerup', onPointerUp, { passive: true });
+    container.addEventListener('pointerleave', onPointerLeave, { passive: true });
+    container.addEventListener('pointercancel', onPointerCancel, { passive: true });
     container.addEventListener('wheel', onWheel, { passive: false });
     container.addEventListener('keydown', onKeyDown);
     container.addEventListener('focus', onFocus);
     container.addEventListener('blur', onBlur);
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('scroll', updateRect, { passive: true });
 
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(container);
@@ -1053,6 +1061,7 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       container.removeEventListener('focus', onFocus);
       container.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('scroll', updateRect);
       slots.forEach(slot => slot.dispose());
       slots = [];
       gl.getExtension('WEBGL_lose_context')?.loseContext();
@@ -1067,10 +1076,10 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
     <div
       ref={containerRef}
       className={`flex-carousel ${className}`.trim()}
-      style={{ 
-        ...style, 
+      style={{
+        ...style,
         // @ts-ignore
-        '--flex-carousel-half': `${Math.min(Math.max(cardHeight, 0.05), 1) * 50}%` 
+        '--flex-carousel-half': `${Math.min(Math.max(cardHeight, 0.05), 1) * 50}%`
       }}
       role="region"
       aria-roledescription="carousel"

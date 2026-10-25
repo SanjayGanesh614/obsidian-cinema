@@ -40,6 +40,7 @@
   position: relative;
   width: calc(var(--dw-tile-w) + var(--dw-gap));
   transform-style: preserve-3d;
+  backface-visibility: hidden;
 }
 
 .drift-wall__track {
@@ -47,6 +48,7 @@
   flex-direction: column;
   will-change: transform;
   transform-style: preserve-3d;
+  backface-visibility: hidden;
 }
 
 .drift-wall__tile {
@@ -58,6 +60,7 @@
   outline: none;
   transform-style: preserve-3d;
   cursor: pointer;
+  backface-visibility: hidden;
 }
 
 .drift-wall__inner {
@@ -112,6 +115,7 @@
 }
 
 .drift-wall__tile.is-active .drift-wall__inner,
+.drift-wall__tile:hover .drift-wall__inner,
 .drift-wall__tile:focus-visible .drift-wall__inner {
   opacity: 1;
   transform: translateZ(var(--dw-lift));
@@ -120,16 +124,19 @@
 }
 
 .drift-wall__tile.is-active img,
+.drift-wall__tile:hover img,
 .drift-wall__tile:focus-visible img {
   filter: grayscale(0) saturate(1.1);
 }
 
 .drift-wall__tile.is-active .drift-wall__overlay,
+.drift-wall__tile:hover .drift-wall__overlay,
 .drift-wall__tile:focus-visible .drift-wall__overlay {
   opacity: 0;
 }
 
 .drift-wall__tile.is-active .drift-wall__info,
+.drift-wall__tile:hover .drift-wall__info,
 .drift-wall__tile:focus-visible .drift-wall__info {
   opacity: 1;
   transform: translateY(0);

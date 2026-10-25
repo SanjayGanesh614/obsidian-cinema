@@ -9,6 +9,7 @@ import {
   extractCinemaColor,
   mapMediaToFlexCarouselItems,
   mapTicketsToMasonryItems,
+  dampSpringStep,
 } from './pure';
 import { MediaItem, FilterState, TicketStub } from '../types/cinema';
 
@@ -224,3 +225,18 @@ test('mapTicketsToMasonryItems formats watched tickets for React Bits Masonry', 
   assert.ok(masonry[0].width > 0);
   assert.ok(masonry[0].height > 0);
 });
+
+test('dampSpringStep smoothly converges towards target without overshooting', () => {
+  let val = 0;
+  const target = 100;
+  const tau = 0.12;
+  const dt = 0.016; // ~60fps frame
+
+  for (let i = 0; i < 30; i++) {
+    val = dampSpringStep(val, target, tau, dt);
+  }
+  // After 30 frames (0.48s), should have smoothly converged close to 100
+  assert.ok(val > 95, `Expected val > 95, got ${val}`);
+  assert.ok(val <= 100, `Expected val <= 100, got ${val}`);
+});
+

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { MediaItem, ViewMode, TicketStub } from './types/cinema';
 import { fetchTrending, CURATED_FALLBACK_FILMS } from './services/tmdb';
-import { getStoredWatchlist, saveWatchlist, getStoredTickets, saveTickets } from './services/storage';
+import { getStoredWatchlist, saveWatchlist, getStoredTickets, saveTickets, getStoredMedia, saveStoredMedia } from './services/storage';
 import { getCachedMediaItems } from './services/neonDb';
 import { extractCinemaColor } from './utils/pure';
 import { cinemaAudio } from './services/audio';
@@ -18,8 +18,11 @@ import { TrailerModal } from './components/TrailerModal';
 import { SearchBarModal } from './components/SearchBarModal';
 
 export default function App() {
-  const [items, setItems] = useState<MediaItem[]>(CURATED_FALLBACK_FILMS);
-  const [activeItem, setActiveItem] = useState<MediaItem>(CURATED_FALLBACK_FILMS[0]);
+  const [items, setItems] = useState<MediaItem[]>(() => getStoredMedia() || CURATED_FALLBACK_FILMS);
+  const [activeItem, setActiveItem] = useState<MediaItem>(() => {
+    const initial = getStoredMedia();
+    return initial && initial.length > 0 ? initial[0] : CURATED_FALLBACK_FILMS[0];
+  });
   const [viewMode, setViewMode] = useState<ViewMode>('landing');
   const [activeMoodColor, setActiveMoodColor] = useState<string | null>(null);
 
@@ -51,6 +54,7 @@ export default function App() {
       .then((dbItems) => {
         if (dbItems && dbItems.length > 0) {
           setItems(dbItems);
+          saveStoredMedia(dbItems);
           setActiveItem(dbItems[0]);
         } else {
           // If DB is empty, fetch from TMDB

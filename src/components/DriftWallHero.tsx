@@ -43,7 +43,7 @@ export const DriftWallHero: React.FC<DriftWallHeroProps> = ({
   // Convert MediaItems to DriftItems
   const driftItems: DriftItem[] = useMemo(() => {
     return filteredMovies.map((m) => ({
-      image: getPosterUrl(m.poster_path, 'w500'),
+      image: getPosterUrl(m.poster_path, 'w342'),
       title: m.title,
       year: formatReleaseYear(m),
       rating: m.vote_average,

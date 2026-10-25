@@ -1,4 +1,4 @@
-import { TicketStub } from '../types/cinema';
+import { TicketStub, MediaItem } from '../types/cinema';
 import { generateTicketBarcode } from '../utils/pure';
 
 const STORAGE_KEY_WATCHLIST = 'obsidian_watchlist_v1';
@@ -102,3 +102,27 @@ export function saveTickets(tickets: TicketStub[]) {
     console.warn('Failed to save tickets to localStorage', e);
   }
 }
+
+const STORAGE_KEY_CACHED_MEDIA = 'obsidian_cached_media_v1';
+
+export function getStoredMedia(): MediaItem[] | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CACHED_MEDIA);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.warn('Failed to load media cache from localStorage', e);
+  }
+  return null;
+}
+
+export function saveStoredMedia(items: MediaItem[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY_CACHED_MEDIA, JSON.stringify(items));
+  } catch (e) {
+    console.warn('Failed to save media cache to localStorage', e);
+  }
+}
+
