@@ -1,5 +1,5 @@
 import { MediaItem, MediaType, Genre } from '../types/cinema';
-import { logTMDBApiCall, saveMediaItemsBatch } from './neonDb';
+import { logTMDBApiCall, saveMediaItemsBatch, getCachedMediaItems, searchCachedMedia, updateMediaDetailsInDb } from './neonDb';
 
 const API_KEY = 'a14bfb63af56c3b94c2609ee587fd070';
 const READ_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhMTRiZmI2M2FmNTZjM2I5NGMyNjA5ZWU1ODdmZDA3MCIsIm5iZiI6MTc5Mjc5ODQyMi40MDgsInN1YiI6IjZhZGJlZWQ2MmVjYjNlNzkzMDIxYzZlNyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.La5rHfeC0UmxHjGAPyiZE1r_RQvn5uVhHDfICA_RwHE';
@@ -234,6 +234,26 @@ export const CURATED_FALLBACK_FILMS: MediaItem[] = [
 ];
 
 export async function fetchTrending(mediaType: 'all' | 'movie' | 'tv' = 'all', timeWindow: 'day' | 'week' = 'week'): Promise<MediaItem[]> {
+  // DB-First: Return from Neon DB immediately if cached
+  try {
+    const cached = await getCachedMediaItems(80, undefined, mediaType === 'all' ? undefined : mediaType);
+    if (cached && cached.length >= 10) {
+      // Trigger background update silently to keep DB fresh
+      fetchFromTMDB(`/trending/${mediaType}/${timeWindow}`)
+        .then((data) => {
+          if (data?.results?.length > 0) {
+            const fresh = data.results.map((item: any) => normalizeTMDBItem(item, mediaType === 'all' ? (item.media_type || 'movie') : mediaType));
+            saveMediaItemsBatch(fresh).catch(() => {});
+          }
+        })
+        .catch(() => {});
+
+      return cached;
+    }
+  } catch (e) {
+    // Continue to TMDB API on DB miss
+  }
+
   try {
     const data = await fetchFromTMDB(`/trending/${mediaType}/${timeWindow}`);
     if (data && data.results && data.results.length > 0) {
@@ -262,13 +282,23 @@ export async function fetchTopRated(mediaType: MediaType = 'movie'): Promise<Med
 }
 
 /**
- * Fetch movies or TV series filtered by specific TMDB genre ID
+ * Fetch movies or TV series filtered by specific TMDB genre ID (DB-First)
  */
 export async function fetchMediaByGenre(
   genreId: number, 
   mediaType: 'movie' | 'tv' = 'movie', 
   page: number = 1
 ): Promise<MediaItem[]> {
+  // DB-First check
+  try {
+    const cached = await getCachedMediaItems(40, genreId, mediaType);
+    if (cached && cached.length >= 6) {
+      return cached;
+    }
+  } catch (e) {
+    // Ignore and fetch from API
+  }
+
   try {
     const data = await fetchFromTMDB(`/discover/${mediaType}`, {
       with_genres: String(genreId),
@@ -302,12 +332,23 @@ export async function searchTMDB(query: string, mediaType: 'all' | 'movie' | 'tv
         .filter((item: any) => (item.media_type === 'movie' || item.media_type === 'tv' || mediaType !== 'all') && (item.poster_path || item.backdrop_path))
         .map((item: any) => normalizeTMDBItem(item, mediaType === 'all' ? (item.media_type || 'movie') : mediaType));
       
-      saveMediaItemsBatch(items).catch(() => {});
-      return items;
+      if (items.length > 0) {
+        // Actively store search results in Neon DB!
+        await saveMediaItemsBatch(items);
+        return items;
+      }
     }
   } catch (err) {
-    console.warn('TMDB Search failed:', err);
+    console.warn('TMDB Search failed, falling back to local DB cache:', err);
   }
+
+  // Fallback to local DB cache if offline or network fails
+  try {
+    const dbMatches = await searchCachedMedia(query, 20);
+    if (dbMatches && dbMatches.length > 0) {
+      return dbMatches;
+    }
+  } catch (e) {}
 
   // Fallback search over local curated library
   const q = query.toLowerCase();
@@ -346,6 +387,9 @@ export async function fetchMediaDetails(id: number, mediaType: MediaType = 'movi
       trailerKey,
       genres: data.genres,
     };
+
+    // Actively update enriched details in Neon DB!
+    updateMediaDetailsInDb(id, details).catch(() => {});
 
     return details;
   } catch (err) {

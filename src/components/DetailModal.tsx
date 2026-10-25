@@ -249,10 +249,14 @@ export const DetailModal: React.FC<DetailModalProps> = ({
               cinemaAudio.playClick();
               onStampTicket(enrichedItem);
             }}
-            className="px-6 py-2.5 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 text-black font-display font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-500/25 flex items-center gap-2"
+            className={`px-6 py-2.5 rounded-full font-display font-bold text-xs uppercase tracking-wider transition-all shadow-lg flex items-center gap-2 ${
+              isWatched
+                ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/25'
+                : 'bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 text-black shadow-amber-500/25'
+            }`}
           >
-            <Ticket className="w-4 h-4" />
-            <span>{isWatched ? 'View Stamped Ticket' : 'Stamp Holographic Ticket'}</span>
+            <Check className="w-4 h-4 stroke-[3]" />
+            <span>{isWatched ? 'Watched ✓' : 'Mark Watched'}</span>
           </button>
         </div>
       </div>

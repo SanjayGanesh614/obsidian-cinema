@@ -65,27 +65,44 @@ export const DriftWallHero: React.FC<DriftWallHeroProps> = ({
   };
 
   return (
-    <section className="relative w-full overflow-hidden pt-8 pb-12 border-b border-white/5">
-      {/* Editorial Title Banner */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-amber-400 text-xs font-mono-code uppercase tracking-widest mb-1.5">
-            <Compass className="w-4 h-4 animate-spin-slow" />
-            <span>Interactive 3D Kinetic Exhibition</span>
+    <section className="relative w-full h-full overflow-hidden bg-[#070707]">
+      {/* Sleek Floating Glass HUD: Title, Mood Filters, and Speed */}
+      <div className="absolute top-4 inset-x-0 z-20 pointer-events-none px-4 sm:px-8">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 bg-[#070707]/70 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 shadow-2xl pointer-events-auto">
+          {/* Title & Stream Count */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-amber-400 text-xs font-mono-code font-bold uppercase tracking-wider">
+              <Compass className="w-3.5 h-3.5 animate-spin-slow" />
+              <span>DriftWall</span>
+            </div>
+            <span className="hidden sm:inline text-xs font-mono-code text-white/40">·</span>
+            <span className="text-xs font-mono-code text-white/50 hidden sm:inline">
+              {driftItems.length} curated titles
+            </span>
           </div>
-          <h2 className="font-cinzel text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight">
-            The Cinema DriftWall
-          </h2>
-          <p className="text-white/60 text-sm max-w-xl font-sans mt-1">
-            Immerse yourself in our continuous 3D perspective stream. Hover any title to elevate into the foreground, or click to inspect full archival details and mint a holographic ticket.
-          </p>
-        </div>
 
-        {/* Speed & Direction Controls */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="glass-panel px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2 text-xs font-mono-code text-white/70">
-            <Gauge className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-white/40">Drift:</span>
+          {/* Filter Mood Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            {filterTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  cinemaAudio.playClick();
+                  setActiveMoodFilter(tab.id);
+                }}
+                className={`px-3 py-1 rounded-full text-[11px] font-mono-code uppercase whitespace-nowrap transition-all ${activeMoodFilter === tab.id
+                  ? 'bg-white text-black font-bold shadow-md shadow-white/10'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+                  }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Speed Controls */}
+          <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-full border border-white/10 text-[11px] font-mono-code text-white/70">
+            <Gauge className="w-3 h-3 text-amber-400" />
             {(['calm', 'drift', 'kinetic'] as const).map((s) => (
               <button
                 key={s}
@@ -93,11 +110,10 @@ export const DriftWallHero: React.FC<DriftWallHeroProps> = ({
                   cinemaAudio.playClick();
                   setSpeedLevel(s);
                 }}
-                className={`px-2 py-0.5 rounded-full capitalize transition-all ${
-                  speedLevel === s
-                    ? 'bg-amber-400 text-black font-bold'
-                    : 'text-white/60 hover:text-white'
-                }`}
+                className={`px-2 py-0.5 rounded-full capitalize transition-all ${speedLevel === s
+                  ? 'bg-amber-400 text-black font-bold'
+                  : 'text-white/50 hover:text-white'
+                  }`}
               >
                 {s}
               </button>
@@ -106,51 +122,27 @@ export const DriftWallHero: React.FC<DriftWallHeroProps> = ({
         </div>
       </div>
 
-      {/* Filter Mood Tabs */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 mb-5 overflow-x-auto no-scrollbar flex items-center gap-2">
-        {filterTabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              cinemaAudio.playClick();
-              setActiveMoodFilter(tab.id);
-            }}
-            className={`px-4 py-1.5 rounded-full text-xs font-mono-code uppercase whitespace-nowrap transition-all ${
-              activeMoodFilter === tab.id
-                ? 'bg-white text-black font-bold shadow-lg shadow-white/10'
-                : 'glass-card text-white/60 hover:text-white hover:border-white/25'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-        <span className="text-xs font-mono-code text-white/40 ml-auto shrink-0 hidden md:inline">
-          {driftItems.length} titles streaming
-        </span>
-      </div>
-
-      {/* DriftWall Viewport Container */}
-      <div className="relative w-full h-[620px] sm:h-[680px] bg-[#070707]">
-        {/* React Bits DriftWall Component */}
+      {/* Fullscreen DriftWall Viewport Container */}
+      <div className="w-full h-full">
         <DriftWall
           items={driftItems}
-          columns={5}
-          tileWidth={210}
-          tileHeight={315}
-          gap={20}
+          columns={8}
+          tileWidth={230}
+          tileHeight={345}
+          gap={24}
           radius={16}
-          tilt={15}
-          turn={-13}
+          tilt={12}
+          turn={-10}
           roll={0}
-          perspective={1150}
-          depth={130}
+          perspective={1200}
+          depth={140}
           speed={speedValues[speedLevel]}
           direction="up"
-          variance={0.42}
-          parallax={0.65}
-          lift={70}
-          fade={0.55}
-          dim={0.45}
+          variance={0.4}
+          parallax={0.7}
+          lift={80}
+          fade={0}
+          dim={1}
           grayscale={false}
           overlayColor="#070707"
           onItemClick={handleTileClick}
@@ -158,8 +150,8 @@ export const DriftWallHero: React.FC<DriftWallHeroProps> = ({
         />
 
         {/* Ambient Top & Bottom Vignettes */}
-        <div className="absolute top-0 inset-x-0 h-16 bg-gradient-to-b from-[#070707] to-transparent pointer-events-none z-10" />
-        <div className="absolute bottom-0 inset-x-0 h-20 bg-gradient-to-t from-[#070707] to-transparent pointer-events-none z-10" />
+        <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-[#070707]/90 via-[#070707]/40 to-transparent pointer-events-none z-10" />
+        <div className="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-[#070707]/90 via-[#070707]/40 to-transparent pointer-events-none z-10" />
 
         {/* Floating guidance badge */}
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none z-20">

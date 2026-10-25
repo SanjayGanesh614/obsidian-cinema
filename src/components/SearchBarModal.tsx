@@ -12,6 +12,7 @@ interface SearchBarModalProps {
   onStampTicket: (item: MediaItem) => void;
   watchlistIds: Set<number>;
   watchedIds: Set<number>;
+  onResultsFetched?: (items: MediaItem[]) => void;
 }
 
 export const SearchBarModal: React.FC<SearchBarModalProps> = ({
@@ -21,6 +22,7 @@ export const SearchBarModal: React.FC<SearchBarModalProps> = ({
   onStampTicket,
   watchlistIds,
   watchedIds,
+  onResultsFetched,
 }) => {
   const [query, setQuery] = useState('');
   const [mediaType, setMediaType] = useState<'all' | 'movie' | 'tv'>('all');
@@ -46,18 +48,28 @@ export const SearchBarModal: React.FC<SearchBarModalProps> = ({
     }
 
     setLoading(true);
+    let isCurrent = true;
+
     const timer = setTimeout(() => {
       searchTMDB(query, mediaType)
         .then((items) => {
+          if (!isCurrent) return;
           setResults(items);
+          if (items && items.length > 0 && onResultsFetched) {
+            onResultsFetched(items);
+          }
           setLoading(false);
         })
         .catch(() => {
+          if (!isCurrent) return;
           setLoading(false);
         });
-    }, 280);
+    }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      isCurrent = false;
+      clearTimeout(timer);
+    };
   }, [query, mediaType]);
 
   return (
@@ -189,12 +201,12 @@ export const SearchBarModal: React.FC<SearchBarModalProps> = ({
                       }}
                       className={`p-2 rounded-full transition-all ${
                         isWatched
-                          ? 'bg-amber-400/20 border border-amber-400 text-amber-300'
+                          ? 'bg-emerald-500/20 border border-emerald-400 text-emerald-300'
                           : 'bg-amber-400 text-black hover:bg-amber-300 font-bold'
                       }`}
-                      title={isWatched ? 'Ticket Stamped' : 'Stamp Holographic Ticket'}
+                      title={isWatched ? 'Watched ✓' : 'Mark Watched'}
                     >
-                      <Ticket className="w-3.5 h-3.5" />
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
                     </button>
                   </div>
                 </div>

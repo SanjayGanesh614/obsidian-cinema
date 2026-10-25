@@ -113,8 +113,8 @@ export const HeroSpotlight: React.FC<HeroSpotlightProps> = ({
               }}
               className="px-6 py-3 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 text-black font-display font-bold text-sm tracking-wide uppercase transition-all shadow-lg shadow-amber-500/25 hover:scale-105 flex items-center gap-2"
             >
-              <Ticket className="w-4 h-4" />
-              <span>{isWatched ? 'Inspect Ticket Stub' : 'Stamp 3D Ticket'}</span>
+              <Check className="w-4 h-4 stroke-[3]" />
+              <span>{isWatched ? 'Watched ✓' : 'Mark Watched'}</span>
             </button>
 
             {/* Watchlist Toggle */}

@@ -108,7 +108,7 @@ export const HolographicTicket3D: React.FC<HolographicTicket3DProps> = ({ ticket
       roughness: 0.2,
     });
 
-    const frontMat = new THREE.MeshStandardMaterial({
+    const frontMat = new THREE.MeshPhysicalMaterial({
       map: frontTexture,
       metalness,
       roughness,

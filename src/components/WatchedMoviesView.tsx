@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { TicketStub, MediaItem } from '../types/cinema';
 import { Masonry, MasonryItem } from './reactbits/Masonry';
-import { mapTicketsToMasonryItems } from '../utils/pure';
+import { mapTicketsToMasonryItems, formatRuntime } from '../utils/pure';
 import { cinemaAudio } from '../services/audio';
+import { fetchMediaDetails, getBackdropUrl, getPosterUrl } from '../services/tmdb';
 import { 
   CheckCircle2, 
   Film, 
@@ -14,7 +15,12 @@ import {
   Play, 
   Sparkles,
   Move,
-  Info
+  Info,
+  X,
+  Calendar,
+  MapPin,
+  Quote,
+  User
 } from 'lucide-react';
 
 interface WatchedMoviesViewProps {
@@ -34,6 +40,46 @@ export const WatchedMoviesView: React.FC<WatchedMoviesViewProps> = ({
 }) => {
   const [filterType, setFilterType] = useState<'all' | 'movie' | 'tv' | 'top'>('all');
   const [activeItemDetails, setActiveItemDetails] = useState<TicketStub | null>(null);
+  const [enrichedMedia, setEnrichedMedia] = useState<MediaItem | null>(null);
+
+  // Fetch full details for selected watched title
+  useEffect(() => {
+    if (!activeItemDetails) {
+      setEnrichedMedia(null);
+      return;
+    }
+
+    let isMounted = true;
+    const baseMedia: MediaItem = {
+      id: activeItemDetails.mediaId,
+      title: activeItemDetails.title,
+      overview: activeItemDetails.review || '',
+      poster_path: activeItemDetails.posterPath,
+      backdrop_path: activeItemDetails.backdropPath,
+      vote_average: activeItemDetails.rating || 8.0,
+      vote_count: 100,
+      media_type: activeItemDetails.mediaType,
+      genre_ids: [],
+      release_date: activeItemDetails.watchDate,
+    };
+
+    fetchMediaDetails(activeItemDetails.mediaId, activeItemDetails.mediaType)
+      .then((details) => {
+        if (isMounted) {
+          setEnrichedMedia({
+            ...baseMedia,
+            ...details,
+          });
+        }
+      })
+      .catch(() => {
+        if (isMounted) setEnrichedMedia(baseMedia);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeItemDetails]);
 
   // Filtered tickets
   const filteredTickets = useMemo(() => {
@@ -188,7 +234,7 @@ export const WatchedMoviesView: React.FC<WatchedMoviesViewProps> = ({
         </div>
       </div>
 
-      {/* 3. React Bits <Masonry /> Component Grid */}
+      {/* 3. React Bits <Masonry /> Component Grid (lightbox=false to trigger Split Inspection) */}
       <div className="relative w-full min-h-[500px]">
         {masonryItems.length > 0 ? (
           <Masonry
@@ -200,7 +246,7 @@ export const WatchedMoviesView: React.FC<WatchedMoviesViewProps> = ({
             stagger={0.04}
             hoverEffect="zoom"
             captions="hover"
-            lightbox={true}
+            lightbox={false}
             draggable={true}
             onItemClick={handleTileClick}
             className="w-full"
@@ -216,105 +262,254 @@ export const WatchedMoviesView: React.FC<WatchedMoviesViewProps> = ({
         )}
       </div>
 
-      {/* 4. Active Title Quick Action Inspector Modal */}
+      {/* 4. Split Dual Inspection View: Left = Movie Details + Trailer; Right = Review & Notes Box */}
       {activeItemDetails && (
-        <div className="fixed bottom-6 right-6 z-40 max-w-md w-full p-4 rounded-3xl glass-card border border-white/20 bg-black/90 shadow-2xl backdrop-blur-2xl animate-fadeIn space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[10px] font-mono-code text-amber-400 uppercase tracking-widest">
-                Selected Watched Title
-              </div>
-              <h4 className="font-cinzel text-lg font-bold text-white">
-                {activeItemDetails.title}
-              </h4>
-              <div className="flex items-center gap-2 text-xs font-mono-code text-white/50 mt-0.5">
-                <span>{activeItemDetails.year}</span>
-                <span>·</span>
-                <span className="flex items-center gap-1 text-amber-300">
-                  <Star className="w-3 h-3 fill-amber-300" />
-                  {activeItemDetails.rating?.toFixed(1) || '5.0'}
-                </span>
-                <span>·</span>
-                <span>{activeItemDetails.watchDate}</span>
-              </div>
-            </div>
-
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md animate-fadeIn">
+          <div className="relative w-full max-w-5xl rounded-3xl glass-card overflow-hidden border border-white/20 shadow-2xl bg-[#0a0a0f] max-h-[90vh] flex flex-col">
+            {/* Close Button */}
             <button
-              onClick={() => setActiveItemDetails(null)}
-              className="p-1.5 rounded-full hover:bg-white/10 text-white/60 hover:text-white"
+              onClick={() => {
+                cinemaAudio.playClick();
+                setActiveItemDetails(null);
+              }}
+              className="absolute top-4 right-4 z-30 p-2.5 rounded-full bg-black/60 hover:bg-black/90 text-white/70 hover:text-white border border-white/15 transition-all shadow-lg"
+              aria-label="Close dialog"
             >
-              ✕
+              <X className="w-5 h-5" />
             </button>
-          </div>
 
-          {activeItemDetails.review && (
-            <p className="text-xs text-white/70 italic bg-white/5 p-2.5 rounded-xl border border-white/5">
-              "{activeItemDetails.review}"
-            </p>
-          )}
+            {/* Split Dual-Panel Body */}
+            <div className="overflow-y-auto flex-1 grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-white/10">
+              
+              {/* LEFT SIDE (7-8 cols): Complete Movie Information Card & Trailer */}
+              <div className="lg:col-span-7 xl:col-span-8 flex flex-col">
+                {/* Backdrop with Trailer Play Overlay */}
+                <div className="relative w-full h-56 sm:h-72 bg-black overflow-hidden shrink-0">
+                  <img
+                    src={getBackdropUrl(activeItemDetails.backdropPath, 'original')}
+                    alt={activeItemDetails.title}
+                    className="w-full h-full object-cover opacity-60"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-[#0a0a0f]/40 to-transparent" />
 
-          <div className="flex items-center gap-2 pt-1">
-            {onPlayTrailer && (
-              <button
-                onClick={() => {
-                  cinemaAudio.playClick();
-                  onPlayTrailer({
-                    id: activeItemDetails.mediaId,
-                    title: activeItemDetails.title,
-                    overview: '',
-                    poster_path: activeItemDetails.posterPath,
-                    backdrop_path: activeItemDetails.backdropPath,
-                    vote_average: 8.0,
-                    vote_count: 100,
-                    media_type: activeItemDetails.mediaType,
-                    genre_ids: [],
-                  });
-                }}
-                className="flex-1 py-2 px-3 rounded-xl bg-white text-black text-xs font-mono-code font-bold flex items-center justify-center gap-1.5 hover:bg-white/90 transition-all"
-              >
-                <Play className="w-3.5 h-3.5 fill-black" />
-                <span>Trailer</span>
-              </button>
-            )}
+                  {/* Trailer Button Overlay */}
+                  {onPlayTrailer && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <button
+                        onClick={() => {
+                          cinemaAudio.playClick();
+                          onPlayTrailer(
+                            enrichedMedia || {
+                              id: activeItemDetails.mediaId,
+                              title: activeItemDetails.title,
+                              overview: '',
+                              poster_path: activeItemDetails.posterPath,
+                              backdrop_path: activeItemDetails.backdropPath,
+                              vote_average: 8.0,
+                              vote_count: 100,
+                              media_type: activeItemDetails.mediaType,
+                              genre_ids: [],
+                            }
+                          );
+                        }}
+                        className="group flex items-center gap-3 px-6 py-3 rounded-full glass-panel border border-white/30 text-white font-display font-semibold text-sm hover:scale-105 transition-all shadow-2xl"
+                      >
+                        <div className="w-8 h-8 rounded-full bg-amber-400 text-black flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Play className="w-4 h-4 fill-black translate-x-0.5" />
+                        </div>
+                        <span>Watch Official Trailer</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-            {onSelectMovie && (
-              <button
-                onClick={() => {
-                  cinemaAudio.playClick();
-                  onSelectMovie({
-                    id: activeItemDetails.mediaId,
-                    title: activeItemDetails.title,
-                    overview: activeItemDetails.review || '',
-                    poster_path: activeItemDetails.posterPath,
-                    backdrop_path: activeItemDetails.backdropPath,
-                    vote_average: activeItemDetails.rating || 8.0,
-                    vote_count: 100,
-                    media_type: activeItemDetails.mediaType,
-                    genre_ids: [],
-                    release_date: activeItemDetails.watchDate,
-                  });
-                  setActiveItemDetails(null);
-                }}
-                className="flex-1 py-2 px-3 rounded-xl bg-amber-400 text-black text-xs font-mono-code font-bold flex items-center justify-center gap-1.5 hover:bg-amber-300 transition-all"
-              >
-                <Info className="w-3.5 h-3.5" />
-                <span>Details</span>
-              </button>
-            )}
+                {/* Details Content */}
+                <div className="p-6 sm:p-8 space-y-6 flex-1">
+                  <div className="flex gap-5 items-start">
+                    {/* Poster thumbnail */}
+                    <img
+                      src={getPosterUrl(activeItemDetails.posterPath, 'w342')}
+                      alt={activeItemDetails.title}
+                      className="w-24 sm:w-28 aspect-[2/3] object-cover rounded-xl border border-white/15 shadow-2xl shrink-0"
+                    />
 
-            {onDeleteTicket && (
-              <button
-                onClick={() => {
-                  cinemaAudio.playClick();
-                  onDeleteTicket(activeItemDetails.id);
-                  setActiveItemDetails(null);
-                }}
-                className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition-all"
-                title="Remove from watched"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
+                    {/* Metadata & Title */}
+                    <div className="space-y-2 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono-code font-bold uppercase tracking-wider bg-white/10 text-white border border-white/15">
+                          {activeItemDetails.mediaType === 'movie' ? 'Feature Film' : 'TV Series'}
+                        </span>
+                        <span className="text-xs font-mono-code text-white/50">{activeItemDetails.year}</span>
+                        {enrichedMedia?.runtime && (
+                          <span className="text-xs font-mono-code text-white/50">
+                            · {formatRuntime(enrichedMedia.runtime)}
+                          </span>
+                        )}
+                      </div>
+
+                      <h2 className="font-cinzel text-2xl sm:text-3xl font-extrabold text-white">
+                        {activeItemDetails.title}
+                      </h2>
+
+                      {enrichedMedia?.director && (
+                        <p className="text-xs font-mono-code text-white/70">
+                          <span className="text-white/40">Directed by </span>
+                          <span className="text-white font-medium">{enrichedMedia.director}</span>
+                        </p>
+                      )}
+
+                      {/* Genre Tags */}
+                      {enrichedMedia?.genres && enrichedMedia.genres.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {enrichedMedia.genres.map((g) => (
+                            <span
+                              key={g.id}
+                              className="px-2 py-0.5 rounded-md text-[11px] font-mono-code bg-white/5 border border-white/10 text-white/70"
+                            >
+                              {g.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Synopsis */}
+                  <div className="space-y-1.5">
+                    <h4 className="text-[11px] font-mono-code uppercase tracking-wider text-white/40">
+                      Synopsis
+                    </h4>
+                    <p className="text-white/80 text-sm leading-relaxed font-sans">
+                      {enrichedMedia?.overview || 'No extended synopsis available.'}
+                    </p>
+                  </div>
+
+                  {/* Principal Cast */}
+                  {enrichedMedia?.cast && enrichedMedia.cast.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-[11px] font-mono-code uppercase tracking-wider text-white/40">
+                        Principal Cast
+                      </h4>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        {enrichedMedia.cast.slice(0, 4).map((c) => (
+                          <div
+                            key={c.id}
+                            className="glass-card p-2 rounded-xl border border-white/10 flex items-center gap-2"
+                          >
+                            {c.profile_path ? (
+                              <img
+                                src={getPosterUrl(c.profile_path, 'w342')}
+                                alt={c.name}
+                                className="w-7 h-7 rounded-full object-cover shrink-0"
+                              />
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center shrink-0">
+                                <User className="w-3.5 h-3.5 text-white/50" />
+                              </div>
+                            )}
+                            <div className="overflow-hidden">
+                              <p className="text-xs font-display font-medium text-white truncate">{c.name}</p>
+                              <p className="text-[9px] font-mono-code text-white/40 truncate">{c.character}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* RIGHT SIDE (4-5 cols): User Review & Personal Notes Box */}
+              <div className="lg:col-span-5 xl:col-span-4 p-6 sm:p-7 flex flex-col justify-between bg-black/40 space-y-6">
+                <div className="space-y-6">
+                  {/* Watched Badge Header */}
+                  <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono-code font-bold uppercase tracking-wider">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Watched & Archived</span>
+                    </div>
+                    {activeItemDetails.finish && (
+                      <span className="text-[10px] font-mono-code uppercase px-2 py-0.5 rounded-full border border-amber-400/30 text-amber-300 bg-amber-400/10">
+                        {activeItemDetails.finish.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Rating display */}
+                  <div className="space-y-1.5">
+                    <span className="text-[11px] font-mono-code uppercase text-white/40 tracking-wider">
+                      Your Score
+                    </span>
+                    <div className="flex items-center gap-1.5 text-amber-400">
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-5 h-5 ${
+                            i < Math.round(activeItemDetails.rating)
+                              ? 'fill-amber-400 text-amber-400'
+                              : 'text-white/20'
+                          }`}
+                        />
+                      ))}
+                      <span className="font-cinzel font-bold text-lg text-white ml-2">
+                        {activeItemDetails.rating?.toFixed(1) || '5.0'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Viewing Telemetry: Date, Location, Seat */}
+                  <div className="p-3.5 rounded-2xl glass-card border border-white/10 space-y-2.5 text-xs font-mono-code">
+                    <div className="flex items-center gap-2 text-white/70">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Watched on: <strong className="text-white">{activeItemDetails.watchDate}</strong></span>
+                    </div>
+                    {activeItemDetails.theatre && (
+                      <div className="flex items-center gap-2 text-white/70">
+                        <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span className="truncate">{activeItemDetails.theatre}</span>
+                      </div>
+                    )}
+                    {activeItemDetails.seat && (
+                      <div className="text-[11px] text-white/40 pl-5.5">
+                        {activeItemDetails.seat}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Review & Personal Notes Box */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-[11px] font-mono-code uppercase text-white/40 tracking-wider">
+                      <Quote className="w-3 h-3 text-amber-400" />
+                      <span>Personal Notes & Review</span>
+                    </div>
+                    <div className="p-4 rounded-2xl glass-card border border-white/15 bg-white/[0.03] text-sm text-white/90 leading-relaxed italic font-serif">
+                      "{activeItemDetails.review || 'No written thoughts recorded for this title.'}"
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Controls: Delete / Remove */}
+                {onDeleteTicket && (
+                  <div className="pt-4 border-t border-white/10 flex items-center justify-between">
+                    <button
+                      onClick={() => {
+                        cinemaAudio.playClick();
+                        onDeleteTicket(activeItemDetails.id);
+                        setActiveItemDetails(null);
+                      }}
+                      className="text-xs font-mono-code text-rose-400 hover:text-rose-300 flex items-center gap-1.5 transition-colors py-1.5 px-3 rounded-lg hover:bg-rose-500/10"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove from Watched</span>
+                    </button>
+                    <span className="text-[10px] font-mono-code text-white/30">
+                      ID: {activeItemDetails.id.slice(0, 8)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+            </div>
           </div>
         </div>
       )}

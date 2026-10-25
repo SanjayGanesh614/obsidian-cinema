@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { MediaItem, ViewMode, TicketStub } from './types/cinema';
 import { fetchTrending, CURATED_FALLBACK_FILMS } from './services/tmdb';
 import { getStoredWatchlist, saveWatchlist, getStoredTickets, saveTickets } from './services/storage';
+import { getCachedMediaItems } from './services/neonDb';
 import { extractCinemaColor } from './utils/pure';
 import { cinemaAudio } from './services/audio';
 
@@ -35,17 +36,35 @@ export default function App() {
 
   const watchedIds = useMemo(() => new Set(tickets.map((t) => t.mediaId)), [tickets]);
 
-  // Load live TMDB items on start
+  // Ingest newly discovered items from search or browsing into global state
+  const appendNewMedia = (newItems: MediaItem[]) => {
+    if (!newItems || newItems.length === 0) return;
+    setItems((prev) => {
+      const existingIds = new Set(prev.map((m) => m.id));
+      const additions = newItems.filter((m) => !existingIds.has(m.id));
+      return additions.length > 0 ? [...prev, ...additions] : prev;
+    });
+  };
+
+  // Load all Neon DB cached movies on start (DB-first for instant DriftWall exhibition)
   useEffect(() => {
-    fetchTrending('all', 'week')
-      .then((data) => {
-        if (data && data.length > 0) {
-          setItems(data);
-          setActiveItem(data[0]);
+    getCachedMediaItems(150)
+      .then((dbItems) => {
+        if (dbItems && dbItems.length > 0) {
+          setItems(dbItems);
+          setActiveItem(dbItems[0]);
+        } else {
+          // If DB is empty, fetch from TMDB
+          return fetchTrending('all', 'week').then((data) => {
+            if (data && data.length > 0) {
+              setItems(data);
+              setActiveItem(data[0]);
+            }
+          });
         }
       })
       .catch((err) => {
-        console.warn('Initial live TMDB fetch fallback:', err);
+        console.warn('Initial live DB/TMDB fetch fallback:', err);
       });
   }, []);
 
@@ -138,21 +157,10 @@ export default function App() {
       />
 
       {/* 5. Main Experience Page Switching */}
-      <main className="relative z-10 pb-16">
+      <main className={`relative z-10 ${viewMode === 'landing' ? 'overflow-hidden' : 'pb-16'}`}>
         {viewMode === 'landing' && (
-          <div className="animate-fadeIn">
-            {/* Hero Cinema Spotlight */}
-            <HeroSpotlight
-              item={activeItem}
-              isInWatchlist={watchlistIds.has(activeItem.id)}
-              isWatched={watchedIds.has(activeItem.id)}
-              onToggleWatchlist={handleToggleWatchlist}
-              onStampTicket={(item) => setStampItem(item)}
-              onOpenDetails={(item) => setDetailItem(item)}
-              onPlayTrailer={(item) => setTrailerItem(item)}
-            />
-
-            {/* Flagship DriftWall 3D Landing Page Showcase */}
+          <div className="animate-fadeIn w-full h-[calc(100vh-65px)]">
+            {/* Flagship Fullscreen DriftWall 3D Kinetic Exhibition */}
             <DriftWallHero
               items={items}
               onSelectMovie={(item) => {
@@ -247,9 +255,11 @@ export default function App() {
         <SearchBarModal
           onClose={() => setIsSearchOpen(false)}
           onSelect={(item) => {
+            appendNewMedia([item]);
             setActiveItem(item);
             setDetailItem(item);
           }}
+          onResultsFetched={(newResults) => appendNewMedia(newResults)}
           onToggleWatchlist={handleToggleWatchlist}
           onStampTicket={(item) => setStampItem(item)}
           watchlistIds={watchlistIds}
