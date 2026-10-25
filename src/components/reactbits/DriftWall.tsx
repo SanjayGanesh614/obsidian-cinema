@@ -4,22 +4,12 @@ import './DriftWall.css';
 export interface DriftItem {
   image: string;
   title?: string;
-  subtitle?: string;
   rating?: number;
   year?: string;
-  href?: string;
   mediaItem?: any;
-  [key: string]: any;
 }
 
-const DEFAULT_ITEMS: DriftItem[] = Array.from({ length: 15 }, (_, i) => {
-  const ids = [1015, 1025, 1039, 1043, 1044, 1050, 1062, 1069, 1074, 1080, 1084, 106, 110, 133, 164];
-  return {
-    image: `https://picsum.photos/id/${ids[i % ids.length]}/600/400`,
-    title: `Tile ${i + 1}`,
-    href: undefined,
-  };
-});
+const DEFAULT_ITEMS: DriftItem[] = [];
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -45,7 +35,6 @@ export interface DriftWallProps {
   direction?: 'up' | 'down';
   variance?: number;
   parallax?: number;
-  pauseOnHover?: boolean;
   lift?: number;
   fade?: number;
   dim?: number;
@@ -58,26 +47,25 @@ export interface DriftWallProps {
 
 export const DriftWall: React.FC<DriftWallProps> = ({
   items = DEFAULT_ITEMS,
-  columns = 5,
-  tileWidth = 200,
-  tileHeight = 132,
-  gap = 18,
-  radius = 14,
-  tilt = 16,
-  turn = -14,
+  columns = 8,
+  tileWidth = 230,
+  tileHeight = 345,
+  gap = 24,
+  radius = 16,
+  tilt = 12,
+  turn = -10,
   roll = 0,
   perspective = 1200,
-  depth = 120,
+  depth = 140,
   speed = 42,
   direction = 'up',
-  variance = 0.45,
-  parallax = 0.6,
-  pauseOnHover = false,
-  lift = 64,
-  fade = 0.6,
-  dim = 0.55,
+  variance = 0.4,
+  parallax = 0.7,
+  lift = 80,
+  fade = 0,
+  dim = 1,
   grayscale = false,
-  overlayColor = '#060010',
+  overlayColor = '#070707',
   className = '',
   style,
   onItemClick,
@@ -90,7 +78,6 @@ export const DriftWall: React.FC<DriftWallProps> = ({
   const offsetsRef = useRef<number[]>([]);
   const velocitiesRef = useRef<number[]>([]);
   const hoveredColRef = useRef<number>(-1);
-  const wallHoveredRef = useRef<boolean>(false);
   const pointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const pointerDampedRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const lastTsRef = useRef<number | null>(null);
@@ -176,8 +163,7 @@ export const DriftWall: React.FC<DriftWallProps> = ({
         for (let c = 0; c < trackRefs.current.length; c++) {
           const meta = columnMeta[c];
           if (!meta) continue;
-          const paused = wallHoveredRef.current && pauseOnHover;
-          const factor = paused || hoveredColRef.current === c ? 0 : 1;
+          const factor = hoveredColRef.current === c ? 0 : 1;
           const target = baseVelocities[c] * factor;
 
           const ease = 1 - Math.exp(-dt / (target === 0 ? 0.16 : 0.28));
@@ -206,7 +192,7 @@ export const DriftWall: React.FC<DriftWallProps> = ({
       rafRef.current = null;
       lastTsRef.current = null;
     };
-  }, [baseVelocities, columnMeta, pauseOnHover, parallax, reduced, applyPlaneTransform]);
+  }, [baseVelocities, columnMeta, parallax, reduced, applyPlaneTransform]);
 
   const activate = useCallback((id: string, index: number) => {
     activeIdRef.current = id;
@@ -243,7 +229,6 @@ export const DriftWall: React.FC<DriftWallProps> = ({
   );
 
   const handlePointerLeaveWall = useCallback(() => {
-    wallHoveredRef.current = false;
     pointerRef.current = { x: 0, y: 0 };
     release();
   }, [release]);
@@ -301,13 +286,6 @@ export const DriftWall: React.FC<DriftWallProps> = ({
       onClick: handleClick,
     };
 
-    if (item.href) {
-      return (
-        <a key={id} href={item.href} target="_blank" rel="noreferrer noopener" {...commonProps}>
-          {inner}
-        </a>
-      );
-    }
     return (
       <div key={id} tabIndex={0} role="button" aria-label={item.title ?? 'tile'} {...commonProps}>
         {inner}
@@ -323,9 +301,6 @@ export const DriftWall: React.FC<DriftWallProps> = ({
       className={rootClass}
       style={cssVars}
       onPointerMove={handlePointerMove}
-      onPointerEnter={() => {
-        wallHoveredRef.current = true;
-      }}
       onPointerLeave={handlePointerLeaveWall}
       role="group"
       aria-label="Drifting wall of tiles"

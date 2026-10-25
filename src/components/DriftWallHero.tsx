@@ -4,22 +4,16 @@ import { getPosterUrl } from '../services/tmdb';
 import { formatReleaseYear } from '../utils/pure';
 import { cinemaAudio } from '../services/audio';
 import { DriftWall, DriftItem } from './reactbits/DriftWall';
-import { Sparkles, Gauge, Compass, Eye, Play, Ticket } from 'lucide-react';
+import { Gauge, Compass } from 'lucide-react';
 
 interface DriftWallHeroProps {
   items: MediaItem[];
   onSelectMovie: (item: MediaItem) => void;
-  onHoverMovie?: (item: MediaItem) => void;
-  onPlayTrailer: (item: MediaItem) => void;
-  onStampTicket: (item: MediaItem) => void;
 }
 
 export const DriftWallHero: React.FC<DriftWallHeroProps> = ({
   items,
   onSelectMovie,
-  onHoverMovie,
-  onPlayTrailer,
-  onStampTicket,
 }) => {
   const [speedLevel, setSpeedLevel] = useState<'calm' | 'drift' | 'kinetic'>('drift');
   const [activeMoodFilter, setActiveMoodFilter] = useState<string>('all');
@@ -126,25 +120,7 @@ export const DriftWallHero: React.FC<DriftWallHeroProps> = ({
       <div className="w-full h-full">
         <DriftWall
           items={driftItems}
-          columns={8}
-          tileWidth={230}
-          tileHeight={345}
-          gap={24}
-          radius={16}
-          tilt={12}
-          turn={-10}
-          roll={0}
-          perspective={1200}
-          depth={140}
           speed={speedValues[speedLevel]}
-          direction="up"
-          variance={0.4}
-          parallax={0.7}
-          lift={80}
-          fade={0}
-          dim={1}
-          grayscale={false}
-          overlayColor="#070707"
           onItemClick={handleTileClick}
           className="w-full h-full"
         />

@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 // @ts-ignore
 import { Renderer, Program, Mesh, Triangle, Plane, Texture, RenderTarget } from 'ogl';
+import { loadPosterBitmap } from '../../utils/texture';
 
 import './FlexCarousel.css';
-
-const photo = (id: string) => `https://images.unsplash.com/${id}?w=1200&q=80&auto=format&fit=max`;
 
 export interface FlexCarouselItem {
   src: string;
@@ -14,22 +13,7 @@ export interface FlexCarouselItem {
   [key: string]: any;
 }
 
-const DEFAULT_ITEMS: FlexCarouselItem[] = [
-  {
-    src: photo('photo-1737071371043-761e02b1ef95'),
-    alt: 'An iridescent chrome sculpture of a head',
-    title: 'Iridescence'
-  },
-  {
-    src: photo('photo-1693645325828-62cd35c8da8f'),
-    alt: 'A person in dark clothes standing in front of a white backdrop',
-    title: 'White Room'
-  },
-  { src: photo('photo-1739056238917-d89cd05c48d5'), alt: 'A twisted chrome form on black', title: 'Liquid Metal' },
-  { src: photo('photo-1747191092806-c7da11881986'), alt: 'A clay bust shown in profile', title: 'Clay Study' },
-  { src: photo('photo-1605034313761-73ea4a0cfbf3'), alt: 'Black and white low top sneakers', title: 'Low Tops' },
-  { src: photo('photo-1495462911434-be47104d70fa'), alt: 'A woman in a wide black hat', title: 'Brim' }
-];
+const DEFAULT_ITEMS: FlexCarouselItem[] = [];
 
 const BEND_PRESETS: Record<string, any> = {
   liquid: {
@@ -43,49 +27,13 @@ const BEND_PRESETS: Record<string, any> = {
     dispersion: 0.45,
     liquid: 0,
     followCursor: false
-  },
-  ribbon: {
-    lensWidth: 0.8,
-    lensHeight: 0.8,
-    tilt: 0,
-    roundness: 1,
-    bend: 0.34,
-    reach: 0.34,
-    curl: 'twist',
-    dispersion: 0.4,
-    liquid: 0,
-    followCursor: false
-  },
-  vortex: {
-    lensWidth: 0.7,
-    lensHeight: 0.95,
-    tilt: 30,
-    roundness: 1,
-    bend: 0.46,
-    reach: 0.3,
-    curl: 'twist',
-    dispersion: 0.5,
-    liquid: 0,
-    followCursor: false
-  },
-  arch: {
-    lensWidth: 0.8,
-    lensHeight: 0.8,
-    tilt: 0,
-    roundness: 1,
-    bend: 0.3,
-    reach: 0.36,
-    curl: 'rise',
-    dispersion: 0.4,
-    liquid: 0,
-    followCursor: false
   }
 };
 
 const FIT_ASPECT: Record<string, number> = { portrait: 0.75, square: 1, landscape: 4 / 3 };
 const TAPS = 12;
 const PIXEL_BUDGET = 4.5e6;
-const INTRO_DURATION: Record<string, number> = { rise: 2.1, bloom: 1.6, spin: 2.2, deal: 1.5, fade: 0.35 };
+const INTRO_DURATION: Record<string, number> = { rise: 2.1, fade: 0.35 };
 
 const wrap = (value: number, size: number) => ((((value + size / 2) % size) + size) % size) - size / 2;
 const clamp01 = (value: number) => Math.min(Math.max(value, 0), 1);
@@ -139,7 +87,7 @@ void main() {
   float imageAspect = uImage.x / max(uImage.y, 1.0);
   vec2 scale = imageAspect > cardAspect ? vec2(cardAspect / imageAspect, 1.0) : vec2(1.0, imageAspect / cardAspect);
   scale /= 1.08;
-  vec2 uv = vec2(local.x, 1.0 - local.y);
+  vec2 uv = vec2(local.x, local.y);
   uv = (uv - 0.5) * scale + 0.5;
   uv.x += uShift * (1.0 - scale.x) * 0.5;
   vec3 image = texture(tMap, uv).rgb;
@@ -228,23 +176,6 @@ void main() {
 }
 `;
 
-const Digits = ({ value }: { value: number }) => (
-  <span className="flex-carousel__digits">
-    {String(value)
-      .padStart(2, '0')
-      .split('')
-      .map((digit, index) => (
-        <span key={index} className="flex-carousel__digit">
-          <span className="flex-carousel__reel" style={{ transform: `translateY(${-Number(digit) * 10}%)` }}>
-            {'0123456789'.split('').map(n => (
-              <span key={n}>{n}</span>
-            ))}
-          </span>
-        </span>
-      ))}
-  </span>
-);
-
 export interface FlexCarouselProps {
   items?: FlexCarouselItem[];
   preset?: 'liquid' | 'ribbon' | 'vortex' | 'arch';
@@ -311,7 +242,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
   const callbacksRef = useRef({ onChange, onSelect });
   const [active, setActive] = useState(0);
   const [revealed, setRevealed] = useState(false);
-  const [focusOpen, setFocusOpen] = useState(false);
 
   const base = BEND_PRESETS[preset] || BEND_PRESETS.liquid;
   const pick = (value: any, key: string) => (value === undefined || value === null ? base[key] : value);
@@ -451,14 +381,11 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
     let dirty = true;
     let activeIndex = -1;
     let interactedAt = -Infinity;
-    let autoplayAt = performance.now();
     let hasFocus = false;
     let deform = 0;
     let deformVel = 0;
     let layout: any = null;
     let resnap = false;
-    let hover = '';
-    let lift = 1;
     let energy = 0;
     let lastPos = 0;
     const lens = { x: 0, y: 0, vx: 0, vy: 0, ready: false };
@@ -476,7 +403,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       samples: [] as { x: number; t: number }[]
     };
     const introState = { kind: 'none', t: 0, running: false, done: false, readyAt: 0 };
-    const focus = { index: -1, pending: -1, t: 0, v: 0, target: 0 };
     let instances: any[] = [];
 
     const loadSlot = (item: any, index: number) => {
@@ -498,48 +424,57 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
         image: [1, 1],
         dispose: () => {}
       };
-      const image = new Image();
-      image.crossOrigin = 'anonymous';
-      image.decoding = 'async';
-      image.onload = () => {
-        if (!alive || !slots.includes(slot)) return;
-        texture.image = image;
-        texture.update();
-        slot.image = [image.naturalWidth || 1, image.naturalHeight || 1];
-        slot.aspect = slot.image[0] / slot.image[1];
-        try {
-          const probe = document.createElement('canvas');
-          probe.width = 8;
-          probe.height = 8;
-          const ctx = probe.getContext('2d', { willReadFrequently: true });
-          if (ctx) {
-            ctx.drawImage(image, 0, 0, 8, 8);
-            const data = ctx.getImageData(0, 0, 8, 8).data;
-            const avg = [0, 0, 0];
-            for (let i = 0; i < data.length; i += 4) {
-              avg[0] += data[i];
-              avg[1] += data[i + 1];
-              avg[2] += data[i + 2];
-            }
-            slot.color = avg.map((v: number) => v / 64 / 255);
+
+      let cancelled = false;
+      let activeBitmap: ImageBitmap | null = null;
+
+      loadPosterBitmap(item.src)
+        .then((bitmap) => {
+          if (cancelled || !alive || !slots.includes(slot)) {
+            bitmap.close?.();
+            return;
           }
-        } catch {
-          slot.color = [0.5, 0.5, 0.5];
-        }
-        slot.loaded = true;
-        dirty = true;
-        start();
-      };
-      image.onerror = () => {
-        if (!alive) return;
-        slot.failed = true;
-        dirty = true;
-        start();
-      };
-      image.src = item.src;
+          activeBitmap = bitmap;
+          texture.image = bitmap as any;
+          texture.update();
+          slot.image = [bitmap.width || 1, bitmap.height || 1];
+          slot.aspect = slot.image[0] / slot.image[1];
+          try {
+            const probe = document.createElement('canvas');
+            probe.width = 8;
+            probe.height = 8;
+            const ctx = probe.getContext('2d', { willReadFrequently: true });
+            if (ctx) {
+              ctx.drawImage(bitmap, 0, 0, 8, 8);
+              const data = ctx.getImageData(0, 0, 8, 8).data;
+              const avg = [0, 0, 0];
+              for (let i = 0; i < data.length; i += 4) {
+                avg[0] += data[i];
+                avg[1] += data[i + 1];
+                avg[2] += data[i + 2];
+              }
+              slot.color = avg.map((v: number) => v / 64 / 255);
+            }
+          } catch {
+            slot.color = [0.5, 0.5, 0.5];
+          }
+          slot.loaded = true;
+          dirty = true;
+          start();
+        })
+        .catch(() => {
+          if (cancelled || !alive) return;
+          slot.failed = true;
+          dirty = true;
+          start();
+        });
+
       slot.dispose = () => {
-        image.onload = null;
-        image.onerror = null;
+        cancelled = true;
+        if (activeBitmap) {
+          activeBitmap.close?.();
+          activeBitmap = null;
+        }
         gl.deleteTexture(texture.texture);
       };
       return slot;
@@ -551,11 +486,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       activeIndex = -1;
       layout = null;
       resnap = true;
-      focus.target = 0;
-      focus.t = 0;
-      focus.v = 0;
-      focus.pending = -1;
-      setFocusOpen(false);
       introState.readyAt = performance.now();
       dirty = true;
       start();
@@ -626,25 +556,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       start();
     };
 
-    const openFocus = (index: number) => {
-      focus.index = index;
-      focus.pending = -1;
-      focus.target = 1;
-      setFocusOpen(true);
-      dirty = true;
-      start();
-    };
-
-    const closeFocus = () => {
-      focus.pending = -1;
-      if (focus.target === 0) return false;
-      focus.target = 0;
-      setFocusOpen(false);
-      dirty = true;
-      start();
-      return true;
-    };
-
     const skipIntro = () => {
       if (introState.running) introState.t = 1;
     };
@@ -671,23 +582,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
             scale: 0.5 + 0.5 * easeInOut((local - 0.18) / 0.82)
           };
         };
-      } else if (kind === 'bloom') {
-        e.strength = easeInOut((t - 0.2) / 0.8);
-        e.card = (rel: number) => {
-          const delay = Math.min(Math.abs(rel) / (width * 0.6), 1) * 0.25;
-          const local = easeOut((t - delay) / 0.55);
-          return { alpha: local, x: 0, y: 0, scale: 0.92 + 0.08 * local };
-        };
-      } else if (kind === 'spin') {
-        e.sceneAlpha = easeOut(t / 0.25);
-        e.strength = easeOut((t - 0.55) / 0.45);
-      } else if (kind === 'deal') {
-        e.strength = easeOut((t - 0.45) / 0.5);
-        e.card = (rel: number) => {
-          const spread = Math.min(Math.abs(rel) / (width * 0.6), 1) * 0.3;
-          const local = easeOut((t - 0.12 - spread) / 0.5);
-          return { alpha: easeOut((t - spread) / 0.12), x: -rel * (1 - local), y: 0, scale: 1 };
-        };
       } else {
         e.sceneAlpha = easeOut(t);
         e.strength = easeOut(t);
@@ -702,12 +596,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       introState.done = !introState.running;
       introState.t = 0;
       if (introState.done) setRevealed(true);
-      if (introState.kind === 'spin') {
-        const distance = m.loop * 1.6 + width;
-        pos = goal + distance;
-        vel = -distance * 3;
-        mode = 'spring';
-      }
     };
 
     const resize = () => {
@@ -806,30 +694,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
         callbacksRef.current.onChange?.(current, itemsRef.current[current]);
       }
 
-      if (focus.pending >= 0 && mode === 'spring' && Math.abs(goal - pos) < 1.5 && Math.abs(vel) < 30) {
-        if (current === focus.pending) openFocus(current);
-        else focus.pending = -1;
-      }
-
-      if (
-        s.autoplay &&
-        !reducedMotion &&
-        introState.done &&
-        focus.target === 0 &&
-        focus.t < 0.01 &&
-        !pointer.over &&
-        !pointer.down &&
-        !hasFocus &&
-        mode === 'spring' &&
-        Math.abs(goal - pos) < 1 &&
-        now - interactedAt > 3000 &&
-        now - autoplayAt > s.interval * 1000
-      ) {
-        autoplayAt = now;
-        step(m, 1);
-      }
-      if (s.autoplay && !reducedMotion) animating = true;
-
       const travel = Math.abs(pos - lastPos) / dt;
       lastPos = pos;
       const energyTarget = reducedMotion ? 0 : Math.min(travel / 2600, 1);
@@ -843,32 +707,10 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       deform += deformVel * dt;
       if (Math.abs(deform) > 0.0005 || Math.abs(deformVel) > 0.005) animating = true;
 
-      const focusStiffness = 64;
-      focus.v += (focusStiffness * (focus.target - focus.t) - 2 * Math.sqrt(focusStiffness) * focus.v) * dt;
-      focus.t += focus.v * dt;
-      if (Math.abs(focus.target - focus.t) < 0.0005 && Math.abs(focus.v) < 0.001) {
-        focus.t = focus.target;
-        focus.v = 0;
-      } else {
-        animating = true;
-      }
-      const focusAmount = clamp01(focus.t);
-      const focusEase = easeInOut(focusAmount);
-      const focusW = focus.index >= 0 && focus.index < n ? m.widths[focus.index] : m.cardH;
-      const focusScale = Math.max(1, Math.min(1.3, (height * 0.84) / m.cardH, (width * 0.92) / focusW));
-      const nextLift = 1 + (focusScale - 1) * focusEase;
-      if (Math.abs(nextLift - lift) > 0.0005) {
-        lift = nextLift;
-        container.style.setProperty('--flex-carousel-lift', lift.toFixed(4));
-      }
-
       const effects = introEffects();
 
       const homeX = width / 2;
       const homeY = height / 2;
-      const follow = s.followCursor && pointer.over && !pointer.dragging && !pointer.touch && focus.target === 0;
-      const aimX = follow ? pointer.x : homeX;
-      const aimY = follow ? pointer.y : homeY;
       if (!lens.ready) {
         lens.x = homeX;
         lens.y = homeY;
@@ -876,11 +718,11 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       }
       const lensK = 110;
       const lensC = 2 * Math.sqrt(lensK) * 0.8;
-      lens.vx += (lensK * (aimX - lens.x) - lensC * lens.vx) * dt;
-      lens.vy += (lensK * (aimY - lens.y) - lensC * lens.vy) * dt;
+      lens.vx += (lensK * (homeX - lens.x) - lensC * lens.vx) * dt;
+      lens.vy += (lensK * (homeY - lens.y) - lensC * lens.vy) * dt;
       lens.x += lens.vx * dt;
       lens.y += lens.vy * dt;
-      if (Math.abs(aimX - lens.x) + Math.abs(aimY - lens.y) > 0.2 || Math.abs(lens.vx) + Math.abs(lens.vy) > 0.5)
+      if (Math.abs(homeX - lens.x) + Math.abs(homeY - lens.y) > 0.2 || Math.abs(lens.vx) + Math.abs(lens.vy) > 0.5)
         animating = true;
 
       const cardH = m.cardH;
@@ -919,16 +761,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
             let x = homeX + rel + (fx ? fx.x : 0);
             let scale = shrink * (fx ? fx.scale : 1);
             let alpha = fx ? fx.alpha : 1;
-            if (focusAmount > 0) {
-              if (i === focus.index && Math.abs(rel) < w) {
-                scale *= 1 + (focusScale - 1) * focusEase;
-              } else {
-                const order = Math.min(Math.abs(rel) / width, 1) * 0.25;
-                const part = easeInOut(focusAmount * 1.25 - order);
-                x += Math.sign(rel) * part * width * 0.7;
-                alpha *= 1 - part;
-              }
-            }
             const cw = w * scale;
             if (alpha <= 0.001 || x + cw / 2 < -40 || x - cw / 2 > width + 40) continue;
             draws.push({ i, rel, x, y: homeY + (fx ? fx.y : 0), cw, ch: cardH * scale, alpha });
@@ -979,23 +811,9 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
         lensUniforms.uFlow.value = s.bend * (spanW + spanH) * 0.45;
         lensUniforms.uCurl.value = s.curl === 'rise' ? 1 : s.curl === 'fall' ? -1 : 0;
         lensUniforms.uDispersion.value = s.dispersion * 0.12 * (1 + Math.abs(deform) * liquidAmount * 1.2);
-        lensUniforms.uStrength.value = effects.strength * (1 - focusEase);
+        lensUniforms.uStrength.value = effects.strength;
         lensUniforms.uSceneAlpha.value = effects.sceneAlpha;
         renderer.render({ scene: lensMesh });
-      }
-
-      let nextHover = '';
-      if (pointer.over && !pointer.dragging && introState.done && s.focusOnClick) {
-        const hit = instances.find(
-          (inst: any) => pointer.x >= inst.x0 && pointer.x <= inst.x1 && pointer.y >= inst.y0 && pointer.y <= inst.y1
-        );
-        if (focus.target > 0) nextHover = 'close';
-        else if (hit) nextHover = 'open';
-      }
-      if (nextHover !== hover) {
-        hover = nextHover;
-        if (hover) container.setAttribute('data-hover', hover);
-        else container.removeAttribute('data-hover');
       }
 
       if (visible && (animating || waiting || dirty || pointer.down)) raf = requestAnimationFrame(frame);
@@ -1053,7 +871,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
             pointer.dragging = true;
             pointer.startX = x;
             pointer.startPos = pos;
-            closeFocus();
             try {
               container.setPointerCapture(e.pointerId);
             } catch {
@@ -1100,18 +917,15 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
         start();
         return;
       }
-      if (closeFocus()) return;
       const [x, y] = localPoint(e);
       const hit = instances.find((inst: any) => x >= inst.x0 && x <= inst.x1 && y >= inst.y0 && y <= inst.y1);
       if (!hit) return;
       if (hit.index === activeIndex && Math.abs(goal - pos) < 2) {
         callbacksRef.current.onSelect?.(hit.index, itemsRef.current[hit.index]);
-        if (s.focusOnClick) openFocus(hit.index);
       } else {
         const rel = (hit.x0 + hit.x1) / 2 - width / 2;
         goal = snapPoint(m, pos + rel);
         mode = 'spring';
-        if (s.focusOnClick) focus.pending = hit.index;
         start();
       }
     };
@@ -1148,7 +962,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       e.preventDefault();
       skipIntro();
       interactedAt = performance.now();
-      if (closeFocus()) return;
       const delta = Math.max(-120, Math.min(120, (horizontal ? dx : dy) * unit));
       goal += delta * 1.25;
       mode = 'wheel';
@@ -1163,30 +976,23 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
         e.preventDefault();
         skipIntro();
-        closeFocus();
         interactedAt = performance.now();
         step(m, 1);
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
         skipIntro();
-        closeFocus();
         interactedAt = performance.now();
         step(m, -1);
       } else if (e.key === 'Home') {
         e.preventDefault();
-        closeFocus();
         goTo(m, 0);
       } else if (e.key === 'End') {
         e.preventDefault();
-        closeFocus();
         goTo(m, slots.length - 1);
-      } else if (e.key === 'Escape') {
-        if (closeFocus()) e.preventDefault();
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        if (closeFocus() || activeIndex < 0) return;
+        if (activeIndex < 0) return;
         callbacksRef.current.onSelect?.(activeIndex, itemsRef.current[activeIndex]);
-        if (s.focusOnClick) openFocus(activeIndex);
       }
     };
 
@@ -1271,19 +1077,6 @@ export const FlexCarousel: React.FC<FlexCarouselProps> = ({
       aria-label="Image carousel"
       tabIndex={0}
     >
-      {captions && current && revealed && (
-        <div className="flex-carousel__caption" aria-hidden="true">
-          <span key={active} className="flex-carousel__title">
-            {current.title || current.alt}
-            {current.subtitle && <span className="flex-carousel__subtitle">{current.subtitle}</span>}
-          </span>
-          <span className="flex-carousel__count" data-hidden={focusOpen ? '' : undefined}>
-            <Digits value={active + 1} />
-            <span className="flex-carousel__slash">/</span>
-            <span>{String(list.length).padStart(2, '0')}</span>
-          </span>
-        </div>
-      )}
       <div className="flex-carousel__live" aria-live="polite" aria-atomic="true">
         {`${label}, ${active + 1} of ${list.length}`}
       </div>

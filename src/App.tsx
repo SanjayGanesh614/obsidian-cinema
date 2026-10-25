@@ -8,7 +8,6 @@ import { cinemaAudio } from './services/audio';
 
 // Components
 import { Header } from './components/Header';
-import { HeroSpotlight } from './components/HeroSpotlight';
 import { DriftWallHero } from './components/DriftWallHero';
 import { MoodsSection } from './components/MoodsSection';
 import { GenreReelSection } from './components/GenreReelSection';
@@ -167,9 +166,6 @@ export default function App() {
                 setActiveItem(item);
                 setDetailItem(item);
               }}
-              onHoverMovie={(item) => setActiveItem(item)}
-              onPlayTrailer={(item) => setTrailerItem(item)}
-              onStampTicket={(item) => setStampItem(item)}
             />
           </div>
         )}
