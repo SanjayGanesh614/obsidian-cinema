@@ -190,7 +190,7 @@ export function mapMediaToFlexCarouselItems(items: MediaItem[]): Array<{
       src,
       alt: m.overview || m.title,
       title: m.title,
-      subtitle: `${formatReleaseYear(m)} · ★ ${m.vote_average.toFixed(1)} · ${m.media_type.toUpperCase()}`,
+      subtitle: `${formatReleaseYear(m)} · ★ ${m.vote_average?.toFixed(1) || '8.0'} · ${(m.media_type || 'movie').toUpperCase()}`,
       movie: m,
     };
   });
@@ -220,8 +220,8 @@ export function mapMediaToMasonryItems(
 
     const entry = entriesMap.get(m.id);
     const description = entry
-      ? `★ ${entry.rating.toFixed(1)}/5.0 · Watched ${entry.watchDate || formatReleaseYear(m)} · ${m.media_type.toUpperCase()}`
-      : `★ ${m.vote_average?.toFixed(1) || '8.0'} · ${formatReleaseYear(m)} · ${m.media_type.toUpperCase()}`;
+      ? `★ ${(entry.rating ?? 5.0).toFixed(1)}/5.0 · Watched ${entry.watchDate || formatReleaseYear(m)} · ${(m.media_type || 'movie').toUpperCase()}`
+      : `★ ${m.vote_average?.toFixed(1) || '8.0'} · ${formatReleaseYear(m)} · ${(m.media_type || 'movie').toUpperCase()}`;
 
     return {
       id: String(m.id),

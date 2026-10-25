@@ -137,7 +137,7 @@ export const GenreReelSection: React.FC<GenreReelSectionProps> = ({
         src: getPosterUrl(m.poster_path, 'w500'),
         alt: m.overview,
         title: m.title,
-        subtitle: `${formatReleaseYear(m)} · ★ ${m.vote_average.toFixed(1)} · ${m.media_type.toUpperCase()}`,
+        subtitle: `${formatReleaseYear(m)} · ★ ${m.vote_average?.toFixed(1) || '8.0'} · ${(m.media_type || 'movie').toUpperCase()}`,
         movie: m,
       }));
     }
@@ -146,7 +146,7 @@ export const GenreReelSection: React.FC<GenreReelSectionProps> = ({
       src: getPosterUrl(movie.poster_path, 'w500'),
       alt: movie.overview,
       title: movie.title,
-      subtitle: `${formatReleaseYear(movie)} · ★ ${movie.vote_average.toFixed(1)} · ${movie.media_type.toUpperCase()}`,
+      subtitle: `${formatReleaseYear(movie)} · ★ ${movie.vote_average?.toFixed(1) || '8.0'} · ${(movie.media_type || 'movie').toUpperCase()}`,
       movie,
     }));
   }, [genreTitles]);

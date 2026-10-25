@@ -3,7 +3,7 @@ import { MediaItem, WatchedEntry } from '../types/cinema';
 import { Masonry, MasonryItem } from './reactbits/Masonry';
 import { mapMediaToMasonryItems, formatRuntime, formatReleaseYear, calculateWatchedStats } from '../utils/pure';
 import { cinemaAudio } from '../services/audio';
-import { fetchMediaDetails, getBackdropUrl, getPosterUrl } from '../services/tmdb';
+import { fetchMediaDetails, getBackdropUrl, getPosterUrl, CURATED_FALLBACK_FILMS } from '../services/tmdb';
 import { 
   CheckCircle2, 
   Film, 
@@ -27,6 +27,7 @@ interface WatchedMoviesViewProps {
   onSelectMovie?: (item: MediaItem) => void;
   onPlayTrailer?: (item: MediaItem) => void;
   onClose?: () => void;
+  onAppendMedia?: (items: MediaItem[]) => void;
 }
 
 export const WatchedMoviesView: React.FC<WatchedMoviesViewProps> = ({
@@ -37,6 +38,7 @@ export const WatchedMoviesView: React.FC<WatchedMoviesViewProps> = ({
   onSelectMovie,
   onPlayTrailer,
   onClose,
+  onAppendMedia,
 }) => {
   const [filterType, setFilterType] = useState<'all' | 'movie' | 'tv' | 'top'>('all');
   const [activeItem, setActiveItem] = useState<MediaItem | null>(null);
@@ -44,10 +46,56 @@ export const WatchedMoviesView: React.FC<WatchedMoviesViewProps> = ({
 
   const watchedIds = useMemo(() => new Set(watchedEntries.map((e) => e.mediaId)), [watchedEntries]);
 
-  // Filter movies that user marked as watched
+  // Filter movies that user marked as watched - cross-referencing allMedia + curated library
   const watchedMovies = useMemo(() => {
-    return allMedia.filter((m) => watchedIds.has(m.id));
+    const found = allMedia.filter((m) => watchedIds.has(m.id));
+    const foundIds = new Set(found.map((m) => m.id));
+    const missingCurated = CURATED_FALLBACK_FILMS.filter(
+      (m) => watchedIds.has(m.id) && !foundIds.has(m.id)
+    );
+    return [...found, ...missingCurated];
   }, [allMedia, watchedIds]);
+
+  // Dynamically resolve any watched IDs missing from media catalog
+  useEffect(() => {
+    const presentIds = new Set(watchedMovies.map((m) => m.id));
+    const missingEntries = watchedEntries.filter((e) => !presentIds.has(e.mediaId));
+    if (missingEntries.length === 0) return;
+
+    let isMounted = true;
+    Promise.all(
+      missingEntries.map(async (entry) => {
+        try {
+          const details = await fetchMediaDetails(entry.mediaId, 'movie');
+          if (details) {
+            return {
+              id: entry.mediaId,
+              title: details.tagline || `Watched Title #${entry.mediaId}`,
+              overview: '',
+              poster_path: null,
+              backdrop_path: null,
+              vote_average: 8.0,
+              vote_count: 100,
+              media_type: 'movie' as const,
+              genre_ids: [],
+              ...details,
+            } as MediaItem;
+          }
+        } catch (e) {}
+        return null;
+      })
+    ).then((resolved) => {
+      if (!isMounted) return;
+      const valid = resolved.filter((i): i is MediaItem => i !== null);
+      if (valid.length > 0 && onAppendMedia) {
+        onAppendMedia(valid);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [watchedMovies, watchedEntries, onAppendMedia]);
 
   // Lookup active item's user rating and review
   const activeEntry = useMemo(() => {

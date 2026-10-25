@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import { MediaItem } from '../types/cinema';
+import { MediaItem, WatchedEntry } from '../types/cinema';
 
 const DATABASE_URL = 
   import.meta.env?.VITE_NEON_DATABASE_URL || 
@@ -194,17 +194,23 @@ export async function syncGenresToDb(genres: { id: number; name: string; media_t
 /**
  * Get live stats from Neon DB (cached media count and API log count)
  */
-export async function getNeonDbStats(): Promise<{ mediaCount: number; logsCount: number }> {
+export async function getNeonDbStats(): Promise<{ mediaCount: number; logsCount: number; watchedCount: number }> {
   try {
     const mediaRes = await sql.query('SELECT COUNT(*) as count FROM tmdb_media_cache');
     const logsRes = await sql.query('SELECT COUNT(*) as count FROM tmdb_api_logs');
+    let watchedCount = 0;
+    try {
+      const watchedRes = await sql.query('SELECT COUNT(*) as count FROM user_watched_movies');
+      watchedCount = Number(watchedRes[0]?.count || 0);
+    } catch (e) {}
     
     return {
       mediaCount: Number(mediaRes[0]?.count || 0),
       logsCount: Number(logsRes[0]?.count || 0),
+      watchedCount,
     };
   } catch (err) {
-    return { mediaCount: 0, logsCount: 0 };
+    return { mediaCount: 0, logsCount: 0, watchedCount: 0 };
   }
 }
 
@@ -263,3 +269,132 @@ export async function searchCachedMedia(searchTerm: string, limit: number = 25):
     return [];
   }
 }
+
+/**
+ * Ensure user_watched_movies table exists in Neon PostgreSQL
+ */
+export async function initWatchedTableIfNotExists(): Promise<void> {
+  try {
+    await sql.query(`
+      CREATE TABLE IF NOT EXISTS user_watched_movies (
+        media_id INT PRIMARY KEY,
+        rating NUMERIC(3,1) NOT NULL DEFAULT 5.0,
+        review TEXT DEFAULT '',
+        watch_date TEXT NOT NULL,
+        media_item JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+  } catch (err) {
+    console.debug('[Neon DB] initWatchedTableIfNotExists warning:', err);
+  }
+}
+
+/**
+ * Fetch all watched entries with their cached media items from Neon DB
+ */
+export async function getWatchedEntriesFromDb(): Promise<{ entries: WatchedEntry[]; mediaItems: MediaItem[] }> {
+  try {
+    await initWatchedTableIfNotExists();
+    const rows = await sql.query(
+      `SELECT media_id, rating, review, watch_date, media_item 
+       FROM user_watched_movies 
+       ORDER BY updated_at DESC`
+    );
+
+    if (!rows || rows.length === 0) {
+      return { entries: [], mediaItems: [] };
+    }
+
+    const entries: WatchedEntry[] = [];
+    const mediaItems: MediaItem[] = [];
+
+    for (const r of rows as any[]) {
+      entries.push({
+        mediaId: Number(r.media_id),
+        rating: Number(r.rating || 5.0),
+        review: r.review || '',
+        watchDate: r.watch_date || new Date().toISOString().slice(0, 10),
+      });
+
+      if (r.media_item) {
+        try {
+          const parsed = typeof r.media_item === 'string' ? JSON.parse(r.media_item) : r.media_item;
+          if (parsed && parsed.id) {
+            mediaItems.push(parsed);
+          }
+        } catch (e) {}
+      }
+    }
+
+    return { entries, mediaItems };
+  } catch (err) {
+    console.debug('[Neon DB] getWatchedEntriesFromDb error:', err);
+    return { entries: [], mediaItems: [] };
+  }
+}
+
+/**
+ * Persist or update a watched movie entry in Neon DB
+ */
+export async function saveWatchedEntryToDb(entry: WatchedEntry, mediaItem?: MediaItem): Promise<boolean> {
+  try {
+    await initWatchedTableIfNotExists();
+    const mediaJson = mediaItem ? JSON.stringify(mediaItem) : null;
+    await sql.query(
+      `INSERT INTO user_watched_movies (
+        media_id, rating, review, watch_date, media_item, updated_at
+      ) VALUES ($1, $2, $3, $4, $5::jsonb, NOW())
+      ON CONFLICT (media_id) DO UPDATE SET 
+        rating = EXCLUDED.rating,
+        review = EXCLUDED.review,
+        watch_date = EXCLUDED.watch_date,
+        media_item = COALESCE(EXCLUDED.media_item, user_watched_movies.media_item),
+        updated_at = NOW()`,
+      [entry.mediaId, entry.rating, entry.review || '', entry.watchDate, mediaJson]
+    );
+
+    // Also cache the MediaItem into tmdb_media_cache if present
+    if (mediaItem) {
+      saveMediaItemsBatch([mediaItem]).catch(() => {});
+    }
+    return true;
+  } catch (err) {
+    console.debug('[Neon DB] saveWatchedEntryToDb error:', err);
+    return false;
+  }
+}
+
+/**
+ * Delete a watched movie from Neon DB
+ */
+export async function deleteWatchedEntryFromDb(mediaId: number): Promise<boolean> {
+  try {
+    await initWatchedTableIfNotExists();
+    await sql.query('DELETE FROM user_watched_movies WHERE media_id = $1', [mediaId]);
+    return true;
+  } catch (err) {
+    console.debug('[Neon DB] deleteWatchedEntryFromDb error:', err);
+    return false;
+  }
+}
+
+/**
+ * Batch synchronize watched entries to Neon DB
+ */
+export async function syncWatchedEntriesBatchToDb(
+  entries: WatchedEntry[],
+  mediaMap: Map<number, MediaItem>
+): Promise<void> {
+  if (!entries || entries.length === 0) return;
+  try {
+    for (const entry of entries) {
+      const media = mediaMap.get(entry.mediaId);
+      await saveWatchedEntryToDb(entry, media);
+    }
+  } catch (err) {
+    console.debug('[Neon DB] syncWatchedEntriesBatchToDb error:', err);
+  }
+}
+

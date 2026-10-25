@@ -2,7 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { MediaItem, ViewMode, WatchedEntry } from './types/cinema';
 import { fetchTrending, CURATED_FALLBACK_FILMS } from './services/tmdb';
 import { getStoredWatchlist, saveWatchlist, getStoredWatched, saveWatched, getStoredMedia, saveStoredMedia } from './services/storage';
-import { getCachedMediaItems } from './services/neonDb';
+import { 
+  getCachedMediaItems, 
+  getWatchedEntriesFromDb, 
+  saveWatchedEntryToDb, 
+  deleteWatchedEntryFromDb, 
+  syncWatchedEntriesBatchToDb 
+} from './services/neonDb';
 import { extractCinemaColor } from './utils/pure';
 import { cinemaAudio } from './services/audio';
 
@@ -71,6 +77,53 @@ export default function App() {
       });
   }, []);
 
+  // Synchronize and hydrate watched movies from Neon DB so they persist permanently
+  useEffect(() => {
+    getWatchedEntriesFromDb()
+      .then(({ entries: dbEntries, mediaItems: dbMediaItems }) => {
+        if (dbEntries && dbEntries.length > 0) {
+          // Merge database records with current local state
+          setWatchedEntries((current) => {
+            const map = new Map<number, WatchedEntry>();
+            for (const dbe of dbEntries) {
+              map.set(dbe.mediaId, dbe);
+            }
+            // Retain any newly added entries that haven't hit DB yet and push them
+            for (const ce of current) {
+              if (!map.has(ce.mediaId)) {
+                map.set(ce.mediaId, ce);
+                const media = items.find((m) => m.id === ce.mediaId) || 
+                              CURATED_FALLBACK_FILMS.find((m) => m.id === ce.mediaId);
+                saveWatchedEntryToDb(ce, media).catch(() => {});
+              }
+            }
+            const merged = Array.from(map.values());
+            saveWatched(merged);
+            return merged;
+          });
+
+          // Ingest loaded MediaItems into global media library
+          if (dbMediaItems && dbMediaItems.length > 0) {
+            appendNewMedia(dbMediaItems);
+          }
+        } else {
+          // If Neon DB has no watched movies yet, seed the current initial/local entries to Neon DB
+          const currentWatched = getStoredWatched();
+          if (currentWatched && currentWatched.length > 0) {
+            const mediaMap = new Map<number, MediaItem>();
+            items.forEach((m) => mediaMap.set(m.id, m));
+            CURATED_FALLBACK_FILMS.forEach((m) => {
+              if (!mediaMap.has(m.id)) mediaMap.set(m.id, m);
+            });
+            syncWatchedEntriesBatchToDb(currentWatched, mediaMap).catch(() => {});
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('[Neon DB] Watched sync fallback:', err);
+      });
+  }, []);
+
   // Global Keyboard shortcuts: Cmd+K / Slash for search
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -102,11 +155,27 @@ export default function App() {
 
   // Save or update watched entry with rating & review
   const handleSaveWatchedEntry = (entry: WatchedEntry) => {
+    const mediaItem = ratingModalItem?.id === entry.mediaId 
+      ? ratingModalItem 
+      : items.find((m) => m.id === entry.mediaId) || 
+        CURATED_FALLBACK_FILMS.find((m) => m.id === entry.mediaId);
+
+    // 1. Optimistic UI update
     setWatchedEntries((prev) => {
       const filtered = prev.filter((e) => e.mediaId !== entry.mediaId);
       const next = [entry, ...filtered];
       saveWatched(next);
       return next;
+    });
+
+    // 2. Ensure item is immediately present in global catalog so Watched view renders it
+    if (mediaItem) {
+      appendNewMedia([mediaItem]);
+    }
+
+    // 3. Persist permanently to Neon PostgreSQL
+    saveWatchedEntryToDb(entry, mediaItem).catch((err) => {
+      console.warn('[Neon DB] Failed to save watched entry to database:', err);
     });
   };
 
@@ -116,6 +185,11 @@ export default function App() {
       const next = prev.filter((e) => e.mediaId !== mediaId);
       saveWatched(next);
       return next;
+    });
+
+    // Remove from Neon PostgreSQL
+    deleteWatchedEntryFromDb(mediaId).catch((err) => {
+      console.warn('[Neon DB] Failed to remove watched entry from database:', err);
     });
   };
 
@@ -224,6 +298,7 @@ export default function App() {
               onSelectMovie={(item) => setDetailItem(item)}
               onPlayTrailer={(item) => setTrailerItem(item)}
               onClose={() => changeViewMode('landing')}
+              onAppendMedia={appendNewMedia}
             />
           </div>
         )}

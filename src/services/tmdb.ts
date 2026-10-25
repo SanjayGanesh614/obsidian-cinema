@@ -230,6 +230,25 @@ export const CURATED_FALLBACK_FILMS: MediaItem[] = [
     dominantColor: '#eab308',
     secondaryColor: '#ca8a04',
     popularity: 155,
+  },
+  {
+    id: 666277,
+    title: 'Past Lives',
+    overview: 'Nora and Hae Sung, two deeply connected childhood friends, are wrest apart after Nora’s family emigrates from South Korea. Decades later, they are reunited in New York for one fateful week as they confront notions of destiny, love, and the choices that make a life.',
+    poster_path: '/k3waqVXSnvCZWfJYNtdamTgTtTA.jpg',
+    backdrop_path: '/5YZbUmjbMa3ClvSW1Wj3D6XGolb.jpg',
+    vote_average: 7.9,
+    vote_count: 1450,
+    release_date: '2023-06-02',
+    media_type: 'movie',
+    genre_ids: [18, 10749],
+    runtime: 106,
+    tagline: 'In-Yun connects two souls across time.',
+    director: 'Celine Song',
+    trailerKey: 'kA244xewjcI',
+    dominantColor: '#ec4899',
+    secondaryColor: '#be185d',
+    popularity: 140,
   }
 ];
 

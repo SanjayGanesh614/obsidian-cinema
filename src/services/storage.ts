@@ -51,10 +51,10 @@ export const INITIAL_WATCHED_ENTRIES: WatchedEntry[] = [
 export function getStoredWatched(): WatchedEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_WATCHED);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        if (typeof parsed[0] === 'number') {
+      if (Array.isArray(parsed)) {
+        if (parsed.length > 0 && typeof parsed[0] === 'number') {
           return parsed.map((id: number) => ({
             mediaId: id,
             rating: 5.0,
