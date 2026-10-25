@@ -53,6 +53,10 @@ export const DriftWallHero: React.FC<DriftWallHeroProps> = ({
 
   const handleTileClick = (tile: DriftItem) => {
     cinemaAudio.playClick();
+  };
+
+  const handleTileDoubleClick = (tile: DriftItem) => {
+    cinemaAudio.playClick();
     if (tile.mediaItem) {
       onSelectMovie(tile.mediaItem);
     }
@@ -122,6 +126,7 @@ export const DriftWallHero: React.FC<DriftWallHeroProps> = ({
           items={driftItems}
           speed={speedValues[speedLevel]}
           onItemClick={handleTileClick}
+          onItemDoubleClick={handleTileDoubleClick}
           className="w-full h-full"
         />
 
@@ -133,7 +138,7 @@ export const DriftWallHero: React.FC<DriftWallHeroProps> = ({
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none z-20">
           <div className="glass-panel px-4 py-1.5 rounded-full border border-white/15 text-[11px] font-mono-code text-white/70 shadow-2xl flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <span>Pointer Parallax Active · Hover to Elevate · Click to Open Details</span>
+            <span>Hover to Pop Up · Double-Click to View Details</span>
           </div>
         </div>
       </div>

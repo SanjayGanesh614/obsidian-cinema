@@ -1,4 +1,4 @@
-import { MediaItem, FilterState, TicketStub } from '../types/cinema';
+import { MediaItem, FilterState, WatchedEntry } from '../types/cinema';
 
 export function formatReleaseYear(item: { release_date?: string; first_air_date?: string }): string {
   const date = item.release_date || item.first_air_date;
@@ -13,13 +13,6 @@ export function formatRuntime(minutes?: number): string {
   const m = minutes % 60;
   if (h === 0) return `${m}m`;
   return `${h}h ${m}m`;
-}
-
-export function generateTicketBarcode(mediaId: number, watchDate: string): string {
-  const sanitizedDate = (watchDate || '20261023').replace(/[^0-9]/g, '');
-  const prefix = 'OBSIDIAN';
-  const paddedId = String(mediaId).padStart(6, '0');
-  return `${prefix}-${paddedId}-${sanitizedDate.slice(0, 8)}`;
 }
 
 export function extractCinemaColor(media: MediaItem): { primary: string; secondary: string; glow: string } {
@@ -139,55 +132,45 @@ export function filterAndSortMedia(
   return result;
 }
 
-export interface VaultStats {
-  totalTickets: number;
+export interface WatchedStats {
+  totalWatched: number;
   averageRating: number;
   totalRuntimeHours: number;
-  topFinish: string;
+  movieCount: number;
+  tvCount: number;
 }
 
-export function calculateVaultStats(tickets: TicketStub[]): VaultStats {
-  if (tickets.length === 0) {
+export function calculateWatchedStats(movies: MediaItem[], watchedEntries: WatchedEntry[] = []): WatchedStats {
+  if (movies.length === 0) {
     return {
-      totalTickets: 0,
+      totalWatched: 0,
       averageRating: 0,
       totalRuntimeHours: 0,
-      topFinish: 'None',
+      movieCount: 0,
+      tvCount: 0,
     };
   }
 
-  const sumRatings = tickets.reduce((acc, t) => acc + (t.rating || 0), 0);
-  const avgRating = Number((sumRatings / tickets.length).toFixed(1));
+  const entriesMap = new Map(watchedEntries.map((e) => [e.mediaId, e]));
+  const sumRatings = movies.reduce((acc, m) => {
+    const entry = entriesMap.get(m.id);
+    const score = entry?.rating ?? (m.vote_average ? m.vote_average / 2 : 4.5);
+    return acc + score;
+  }, 0);
+  const avgRating = Number((sumRatings / movies.length).toFixed(1));
 
-  const totalMinutes = tickets.reduce((acc, t) => acc + (t.runtime || 120), 0);
+  const totalMinutes = movies.reduce((acc, m) => acc + (m.runtime || 120), 0);
   const totalHours = Number((totalMinutes / 60).toFixed(1));
 
-  // Count finishes
-  const finishCounts: Record<string, number> = {};
-  for (const t of tickets) {
-    finishCounts[t.finish] = (finishCounts[t.finish] || 0) + 1;
-  }
-  let topFinish = 'iridescent';
-  let maxCount = -1;
-  for (const [finish, count] of Object.entries(finishCounts)) {
-    if (count > maxCount) {
-      maxCount = count;
-      topFinish = finish;
-    }
-  }
-
-  const prettyFinishNames: Record<string, string> = {
-    iridescent: 'Iridescent Prism',
-    gold_leaf: '24K Gold Leaf',
-    onyx_chrome: 'Onyx Chrome',
-    emerald_noir: 'Emerald Noir',
-  };
+  const movieCount = movies.filter((m) => m.media_type === 'movie').length;
+  const tvCount = movies.filter((m) => m.media_type === 'tv').length;
 
   return {
-    totalTickets: tickets.length,
+    totalWatched: movies.length,
     averageRating: avgRating,
     totalRuntimeHours: totalHours,
-    topFinish: prettyFinishNames[topFinish] || topFinish,
+    movieCount,
+    tvCount,
   };
 }
 
@@ -213,7 +196,10 @@ export function mapMediaToFlexCarouselItems(items: MediaItem[]): Array<{
   });
 }
 
-export function mapTicketsToMasonryItems(tickets: TicketStub[]): Array<{
+export function mapMediaToMasonryItems(
+  items: MediaItem[],
+  watchedEntries: WatchedEntry[] = []
+): Array<{
   id: string;
   img: string;
   width: number;
@@ -222,24 +208,31 @@ export function mapTicketsToMasonryItems(tickets: TicketStub[]): Array<{
   title: string;
   description: string;
   alt: string;
-  rawTicket: TicketStub;
+  rawMedia: MediaItem;
 }> {
-  return tickets.map((t, idx) => {
-    const useBackdrop = (idx % 5 === 2) && Boolean(t.backdropPath);
-    const img = useBackdrop && t.backdropPath
-      ? (t.backdropPath.startsWith('http') ? t.backdropPath : `/tmdb-img/w780${t.backdropPath}`)
-      : (t.posterPath ? (t.posterPath.startsWith('http') ? t.posterPath : `/tmdb-img/w500${t.posterPath}`) : '');
+  const entriesMap = new Map(watchedEntries.map((e) => [e.mediaId, e]));
+
+  return items.map((m, idx) => {
+    const useBackdrop = (idx % 5 === 2) && Boolean(m.backdrop_path);
+    const img = useBackdrop && m.backdrop_path
+      ? (m.backdrop_path.startsWith('http') ? m.backdrop_path : `/tmdb-img/w780${m.backdrop_path}`)
+      : (m.poster_path ? (m.poster_path.startsWith('http') ? m.poster_path : `/tmdb-img/w500${m.poster_path}`) : '');
+
+    const entry = entriesMap.get(m.id);
+    const description = entry
+      ? `★ ${entry.rating.toFixed(1)}/5.0 · Watched ${entry.watchDate || formatReleaseYear(m)} · ${m.media_type.toUpperCase()}`
+      : `★ ${m.vote_average?.toFixed(1) || '8.0'} · ${formatReleaseYear(m)} · ${m.media_type.toUpperCase()}`;
 
     return {
-      id: t.id,
+      id: String(m.id),
       img,
       width: useBackdrop ? 800 : 600,
       height: useBackdrop ? 480 : (idx % 4 === 1 ? 800 : idx % 4 === 3 ? 960 : 900),
       span: useBackdrop ? 2 : 1,
-      title: t.title,
-      description: `★ ${t.rating?.toFixed(1) || '5.0'} · Watched ${t.watchDate} · ${t.mediaType.toUpperCase()}`,
-      alt: `${t.title} (${t.year})`,
-      rawTicket: t,
+      title: m.title,
+      description,
+      alt: `${m.title} (${formatReleaseYear(m)})`,
+      rawMedia: m,
     };
   });
 }

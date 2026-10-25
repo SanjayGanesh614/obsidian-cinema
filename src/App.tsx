@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { MediaItem, ViewMode, TicketStub } from './types/cinema';
+import { MediaItem, ViewMode, WatchedEntry } from './types/cinema';
 import { fetchTrending, CURATED_FALLBACK_FILMS } from './services/tmdb';
-import { getStoredWatchlist, saveWatchlist, getStoredTickets, saveTickets, getStoredMedia, saveStoredMedia } from './services/storage';
+import { getStoredWatchlist, saveWatchlist, getStoredWatched, saveWatched, getStoredMedia, saveStoredMedia } from './services/storage';
 import { getCachedMediaItems } from './services/neonDb';
 import { extractCinemaColor } from './utils/pure';
 import { cinemaAudio } from './services/audio';
@@ -13,9 +13,9 @@ import { MoodsSection } from './components/MoodsSection';
 import { GenreReelSection } from './components/GenreReelSection';
 import { WatchedMoviesView } from './components/WatchedMoviesView';
 import { DetailModal } from './components/DetailModal';
-import { TicketStampModal } from './components/TicketStampModal';
 import { TrailerModal } from './components/TrailerModal';
 import { SearchBarModal } from './components/SearchBarModal';
+import { WatchedRatingModal } from './components/WatchedRatingModal';
 
 export default function App() {
   const [items, setItems] = useState<MediaItem[]>(() => getStoredMedia() || CURATED_FALLBACK_FILMS);
@@ -28,15 +28,15 @@ export default function App() {
 
   // Library State
   const [watchlistIds, setWatchlistIds] = useState<Set<number>>(() => new Set(getStoredWatchlist()));
-  const [tickets, setTickets] = useState<TicketStub[]>(() => getStoredTickets());
+  const [watchedEntries, setWatchedEntries] = useState<WatchedEntry[]>(() => getStoredWatched());
 
   // Modal State
   const [detailItem, setDetailItem] = useState<MediaItem | null>(null);
-  const [stampItem, setStampItem] = useState<MediaItem | null>(null);
+  const [ratingModalItem, setRatingModalItem] = useState<MediaItem | null>(null);
   const [trailerItem, setTrailerItem] = useState<MediaItem | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  const watchedIds = useMemo(() => new Set(tickets.map((t) => t.mediaId)), [tickets]);
+  const watchedIds = useMemo(() => new Set(watchedEntries.map((e) => e.mediaId)), [watchedEntries]);
 
   // Ingest newly discovered items from search or browsing into global state
   const appendNewMedia = (newItems: MediaItem[]) => {
@@ -100,22 +100,28 @@ export default function App() {
     });
   };
 
-  // Ticket Stamping / Saving
-  const handleSaveTicket = (ticket: TicketStub) => {
-    setTickets((prev) => {
-      const filtered = prev.filter((t) => t.id !== ticket.id);
-      const next = [ticket, ...filtered];
-      saveTickets(next);
+  // Save or update watched entry with rating & review
+  const handleSaveWatchedEntry = (entry: WatchedEntry) => {
+    setWatchedEntries((prev) => {
+      const filtered = prev.filter((e) => e.mediaId !== entry.mediaId);
+      const next = [entry, ...filtered];
+      saveWatched(next);
       return next;
     });
   };
 
-  const handleDeleteTicket = (ticketId: string) => {
-    setTickets((prev) => {
-      const next = prev.filter((t) => t.id !== ticketId);
-      saveTickets(next);
+  // Remove watched entry
+  const handleRemoveWatched = (mediaId: number) => {
+    setWatchedEntries((prev) => {
+      const next = prev.filter((e) => e.mediaId !== mediaId);
+      saveWatched(next);
       return next;
     });
+  };
+
+  // When marking as watched, open rating & review card
+  const handlePromptWatched = (item: MediaItem) => {
+    setRatingModalItem(item);
   };
 
   // Ambient lighting color
@@ -154,9 +160,8 @@ export default function App() {
         onViewModeChange={changeViewMode}
         onOpenSearch={() => setIsSearchOpen(true)}
         watchlistCount={watchlistIds.size}
-        ticketCount={tickets.length}
+        watchedCount={watchedIds.size}
         onOpenWatchlist={() => setIsSearchOpen(true)}
-        onOpenVault={() => changeViewMode(viewMode === 'watched' ? 'landing' : 'watched')}
       />
 
       {/* 5. Main Experience Page Switching */}
@@ -183,7 +188,7 @@ export default function App() {
                 setDetailItem(item);
               }}
               onPlayTrailer={(item) => setTrailerItem(item)}
-              onStampTicket={(item) => setStampItem(item)}
+              onToggleWatched={handlePromptWatched}
               onMoodSelect={(mood) => setActiveMoodColor(mood.color)}
             />
           </div>
@@ -198,16 +203,24 @@ export default function App() {
                 setDetailItem(item);
               }}
               onPlayTrailer={(item) => setTrailerItem(item)}
-              onStampTicket={(item) => setStampItem(item)}
+              onToggleWatched={handlePromptWatched}
             />
           </div>
         )}
 
-        {(viewMode === 'watched' || viewMode === 'vault') && (
+        {viewMode === 'watched' && (
           <div className="animate-fadeIn pt-4">
             <WatchedMoviesView
-              tickets={tickets}
-              onDeleteTicket={handleDeleteTicket}
+              watchedEntries={watchedEntries}
+              allMedia={items}
+              onToggleWatched={(item) => {
+                if (watchedIds.has(item.id)) {
+                  handleRemoveWatched(item.id);
+                } else {
+                  handlePromptWatched(item);
+                }
+              }}
+              onEditWatched={(item) => setRatingModalItem(item)}
               onSelectMovie={(item) => setDetailItem(item)}
               onPlayTrailer={(item) => setTrailerItem(item)}
               onClose={() => changeViewMode('landing')}
@@ -224,10 +237,7 @@ export default function App() {
           isWatched={watchedIds.has(detailItem.id)}
           onClose={() => setDetailItem(null)}
           onToggleWatchlist={handleToggleWatchlist}
-          onStampTicket={(item) => {
-            setDetailItem(null);
-            setStampItem(item);
-          }}
+          onToggleWatched={(item) => handlePromptWatched(item)}
           onPlayTrailer={(item) => {
             setDetailItem(null);
             setTrailerItem(item);
@@ -235,12 +245,13 @@ export default function App() {
         />
       )}
 
-      {stampItem && (
-        <TicketStampModal
-          item={stampItem}
-          existingTicket={tickets.find((t) => t.mediaId === stampItem.id)}
-          onSaveTicket={handleSaveTicket}
-          onClose={() => setStampItem(null)}
+      {ratingModalItem && (
+        <WatchedRatingModal
+          item={ratingModalItem}
+          existingEntry={watchedEntries.find((e) => e.mediaId === ratingModalItem.id)}
+          onSave={handleSaveWatchedEntry}
+          onRemove={handleRemoveWatched}
+          onClose={() => setRatingModalItem(null)}
         />
       )}
 
@@ -261,7 +272,7 @@ export default function App() {
           }}
           onResultsFetched={(newResults) => appendNewMedia(newResults)}
           onToggleWatchlist={handleToggleWatchlist}
-          onStampTicket={(item) => setStampItem(item)}
+          onToggleWatched={(item) => handlePromptWatched(item)}
           watchlistIds={watchlistIds}
           watchedIds={watchedIds}
         />

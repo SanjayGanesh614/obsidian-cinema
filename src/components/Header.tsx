@@ -5,7 +5,6 @@ import {
   Film,
   Compass,
   Sparkles,
-  Ticket,
   Search,
   Bookmark,
   Volume2,
@@ -19,9 +18,8 @@ interface HeaderProps {
   onViewModeChange: (mode: ViewMode) => void;
   onOpenSearch: () => void;
   watchlistCount: number;
-  ticketCount: number;
+  watchedCount: number;
   onOpenWatchlist: () => void;
-  onOpenVault?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,9 +27,8 @@ export const Header: React.FC<HeaderProps> = ({
   onViewModeChange,
   onOpenSearch,
   watchlistCount,
-  ticketCount,
+  watchedCount,
   onOpenWatchlist,
-  onOpenVault,
 }) => {
   const [isMuted, setIsMuted] = React.useState(cinemaAudio.getMuted());
   const [projectorActive, setProjectorActive] = React.useState(false);
@@ -146,9 +143,9 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Watched</span>
-            {ticketCount > 0 && (
+            {watchedCount > 0 && (
               <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${viewMode === 'watched' ? 'bg-black text-amber-300' : 'bg-amber-400/20 text-amber-300'}`}>
-                {ticketCount}
+                {watchedCount}
               </span>
             )}
           </button>

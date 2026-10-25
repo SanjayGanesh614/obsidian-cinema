@@ -43,6 +43,7 @@ export interface DriftWallProps {
   className?: string;
   style?: React.CSSProperties;
   onItemClick?: (item: DriftItem) => void;
+  onItemDoubleClick?: (item: DriftItem) => void;
 }
 
 export const DriftWall: React.FC<DriftWallProps> = ({
@@ -69,6 +70,7 @@ export const DriftWall: React.FC<DriftWallProps> = ({
   className = '',
   style,
   onItemClick,
+  onItemDoubleClick,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const planeRef = useRef<HTMLDivElement>(null);
@@ -78,6 +80,9 @@ export const DriftWall: React.FC<DriftWallProps> = ({
   const offsetsRef = useRef<number[]>([]);
   const velocitiesRef = useRef<number[]>([]);
   const hoveredColRef = useRef<number>(-1);
+  const lastTapRef = useRef<{ key: string; time: number }>({ key: '', time: 0 });
+  const lastOpenRef = useRef<number>(0);
+
   const pointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const pointerDampedRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const lastTsRef = useRef<number | null>(null);
@@ -90,6 +95,14 @@ export const DriftWall: React.FC<DriftWallProps> = ({
     height: 1,
   });
   const [reduced, setReduced] = useState(false);
+
+  useEffect(() => {
+    const resetHover = () => {
+      hoveredColRef.current = -1;
+    };
+    window.addEventListener('blur', resetHover);
+    return () => window.removeEventListener('blur', resetHover);
+  }, []);
 
   useEffect(() => {
     setReduced(prefersReducedMotion());
@@ -187,8 +200,13 @@ export const DriftWall: React.FC<DriftWallProps> = ({
           const factor = hoveredColRef.current === c ? 0 : 1;
           const target = baseVelocities[c] * factor;
 
-          const ease = 1 - Math.exp(-dt / (target === 0 ? 0.16 : 0.28));
-          velocitiesRef.current[c] += (target - velocitiesRef.current[c]) * ease;
+          // ponytail: Snap to 0 instantly on hover so column freezes under cursor, ease back on leave
+          if (target === 0) {
+            velocitiesRef.current[c] = 0;
+          } else {
+            const ease = 1 - Math.exp(-dt / 0.22);
+            velocitiesRef.current[c] += (target - velocitiesRef.current[c]) * ease;
+          }
           let next = (offsetsRef.current[c] ?? 0) + velocitiesRef.current[c] * dt;
           next = ((next % meta.copyHeight) + meta.copyHeight) % meta.copyHeight;
           offsetsRef.current[c] = next;
@@ -215,7 +233,6 @@ export const DriftWall: React.FC<DriftWallProps> = ({
     };
   }, [baseVelocities, columnMeta, parallax, reduced, applyPlaneTransform]);
 
-  // ponytail: Decoupled pointer handling without layout reads or state churn
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (parallax > 0 && !reduced) {
@@ -223,24 +240,12 @@ export const DriftWall: React.FC<DriftWallProps> = ({
         pointerRef.current.x = (e.clientX - r.left) / r.width - 0.5;
         pointerRef.current.y = (e.clientY - r.top) / r.height - 0.5;
       }
+      if (!(e.target as HTMLElement)?.closest('.drift-wall__tile')) {
+        hoveredColRef.current = -1;
+      }
     },
     [parallax, reduced]
   );
-
-  const handlePointerOver = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const tile = (e.target as HTMLElement).closest('[data-col]') as HTMLElement | null;
-    if (tile) {
-      const col = Number(tile.dataset.col);
-      if (!isNaN(col)) hoveredColRef.current = col;
-    }
-  }, []);
-
-  const handlePointerOut = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const tile = (e.target as HTMLElement).closest('[data-col]') as HTMLElement | null;
-    if (tile && !tile.contains(e.relatedTarget as Node | null)) {
-      hoveredColRef.current = -1;
-    }
-  }, []);
 
   const handlePointerLeaveWall = useCallback(() => {
     pointerRef.current = { x: 0, y: 0 };
@@ -265,6 +270,59 @@ export const DriftWall: React.FC<DriftWallProps> = ({
   );
 
   const renderTile = (item: DriftItem, id: string, colIndex: number) => {
+    const handleOpen = () => {
+      const now = Date.now();
+      if (now - lastOpenRef.current < 400) return;
+      lastOpenRef.current = now;
+      hoveredColRef.current = -1;
+      if (onItemDoubleClick) {
+        onItemDoubleClick(item);
+      } else if (onItemClick) {
+        onItemClick(item);
+      }
+    };
+
+    const handleTileDoubleClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      handleOpen();
+    };
+
+    const handleTileClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const now = Date.now();
+      const itemKey = item.mediaItem?.id ? String(item.mediaItem.id) : (item.title || id);
+      const timeDiff = now - lastTapRef.current.time;
+
+      // ponytail: Universal double-click/double-tap detector
+      if (lastTapRef.current.key === itemKey && timeDiff > 40 && timeDiff < 480) {
+        lastTapRef.current = { key: '', time: 0 };
+        handleOpen();
+        return;
+      }
+
+      lastTapRef.current = { key: itemKey, time: now };
+      if (onItemClick) {
+        onItemClick(item);
+      }
+    };
+
+    // ponytail: Touch double-tap detector (fires before click on mobile touchscreens)
+    const handleTilePointerUp = (e: React.PointerEvent) => {
+      if (e.pointerType === 'touch') {
+        const now = Date.now();
+        const itemKey = item.mediaItem?.id ? String(item.mediaItem.id) : (item.title || id);
+        const timeDiff = now - lastTapRef.current.time;
+
+        if (lastTapRef.current.key === itemKey && timeDiff > 40 && timeDiff < 480) {
+          e.preventDefault();
+          lastTapRef.current = { key: '', time: 0 };
+          handleOpen();
+          return;
+        }
+        lastTapRef.current = { key: itemKey, time: now };
+      }
+    };
+
     const inner = (
       <span className="drift-wall__inner">
         <img src={item.image} alt={item.title ?? ''} loading="eager" decoding="async" draggable={false} />
@@ -285,23 +343,29 @@ export const DriftWall: React.FC<DriftWallProps> = ({
       </span>
     );
 
-    const handleClick = () => {
-      if (onItemClick) {
-        onItemClick(item);
-      }
-    };
-
     const commonProps = {
       className: 'drift-wall__tile',
       'data-tile-id': id,
       'data-col': colIndex,
+      onPointerEnter: () => {
+        hoveredColRef.current = colIndex;
+      },
+      onPointerLeave: () => {
+        if (hoveredColRef.current === colIndex) {
+          hoveredColRef.current = -1;
+        }
+      },
       onFocus: () => {
         hoveredColRef.current = colIndex;
       },
       onBlur: () => {
-        hoveredColRef.current = -1;
+        if (hoveredColRef.current === colIndex) {
+          hoveredColRef.current = -1;
+        }
       },
-      onClick: handleClick,
+      onClick: handleTileClick,
+      onDoubleClick: handleTileDoubleClick,
+      onPointerUp: handleTilePointerUp,
     };
 
     return (
@@ -319,8 +383,6 @@ export const DriftWall: React.FC<DriftWallProps> = ({
       className={rootClass}
       style={cssVars}
       onPointerMove={handlePointerMove}
-      onPointerOver={handlePointerOver}
-      onPointerOut={handlePointerOut}
       onPointerLeave={handlePointerLeaveWall}
       role="group"
       aria-label="Drifting wall of tiles"

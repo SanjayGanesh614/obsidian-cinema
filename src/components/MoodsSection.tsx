@@ -4,13 +4,13 @@ import { CINEMA_MOODS } from '../data/cinemaMoods';
 import { getPosterUrl, getBackdropUrl } from '../services/tmdb';
 import { formatReleaseYear } from '../utils/pure';
 import { cinemaAudio } from '../services/audio';
-import { Sparkles, Star, Play, Ticket, ArrowRight, Film } from 'lucide-react';
+import { Sparkles, Star, Play, Check, ArrowRight, Film } from 'lucide-react';
 
 interface MoodsSectionProps {
   items: MediaItem[];
   onSelectMovie: (item: MediaItem) => void;
   onPlayTrailer: (item: MediaItem) => void;
-  onStampTicket: (item: MediaItem) => void;
+  onToggleWatched: (item: MediaItem) => void;
   onMoodSelect?: (mood: MoodCategory) => void;
 }
 
@@ -18,7 +18,7 @@ export const MoodsSection: React.FC<MoodsSectionProps> = ({
   items,
   onSelectMovie,
   onPlayTrailer,
-  onStampTicket,
+  onToggleWatched,
   onMoodSelect,
 }) => {
   const [selectedMoodId, setSelectedMoodId] = useState<string>(CINEMA_MOODS[0].id);
@@ -171,12 +171,12 @@ export const MoodsSection: React.FC<MoodsSectionProps> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           cinemaAudio.playClick();
-                          onStampTicket(movie);
+                          onToggleWatched(movie);
                         }}
                         className="p-2.5 rounded-full bg-amber-400 text-black hover:bg-amber-300 transition-transform shadow-lg font-bold"
-                        title="Stamp 3D Ticket"
+                        title="Mark as Watched"
                       >
-                        <Ticket className="w-3.5 h-3.5" />
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
                       </button>
                     </div>
                   </div>

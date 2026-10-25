@@ -34,6 +34,7 @@
   cursor: pointer;
   transform-origin: 50% 50%;
   will-change: transform;
+  pointer-events: none;
 }
 
 .drift-wall__col {
@@ -41,6 +42,13 @@
   width: calc(var(--dw-tile-w) + var(--dw-gap));
   transform-style: preserve-3d;
   backface-visibility: hidden;
+  transition: z-index 0.2s ease;
+  pointer-events: none;
+}
+
+.drift-wall__col:hover,
+.drift-wall__col:has(.drift-wall__tile:hover) {
+  z-index: 40;
 }
 
 .drift-wall__track {
@@ -49,6 +57,7 @@
   will-change: transform;
   transform-style: preserve-3d;
   backface-visibility: hidden;
+  pointer-events: none;
 }
 
 .drift-wall__tile {
@@ -61,6 +70,15 @@
   transform-style: preserve-3d;
   cursor: pointer;
   backface-visibility: hidden;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: z-index 0.2s ease;
+  pointer-events: auto;
+}
+
+.drift-wall__tile:hover,
+.drift-wall__tile:focus-visible {
+  z-index: 50;
 }
 
 .drift-wall__inner {
@@ -74,9 +92,10 @@
   transform: translateZ(0);
   pointer-events: none;
   transition:
-    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -86,9 +105,10 @@
   object-fit: cover;
   display: block;
   filter: grayscale(var(--dw-gray)) saturate(0.92);
-  transition: filter 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: filter 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   user-select: none;
   -webkit-user-drag: none;
+  pointer-events: none;
 }
 
 .drift-wall__overlay {
@@ -97,7 +117,7 @@
   background: var(--dw-overlay);
   opacity: 0.42;
   pointer-events: none;
-  transition: opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .drift-wall__info {
@@ -106,36 +126,32 @@
   left: 0;
   right: 0;
   padding: 12px 10px 8px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.4) 60%, transparent 100%);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.5) 60%, transparent 100%);
   opacity: 0;
   transform: translateY(6px);
-  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1), transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
   z-index: 2;
 }
 
-.drift-wall__tile.is-active .drift-wall__inner,
 .drift-wall__tile:hover .drift-wall__inner,
 .drift-wall__tile:focus-visible .drift-wall__inner {
   opacity: 1;
-  transform: translateZ(var(--dw-lift));
-  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.8), 0 0 30px -5px rgba(245, 158, 11, 0.25);
-  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateZ(var(--dw-lift, 80px));
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.85);
+  border-color: rgba(255, 255, 255, 0.35);
 }
 
-.drift-wall__tile.is-active img,
 .drift-wall__tile:hover img,
 .drift-wall__tile:focus-visible img {
   filter: grayscale(0) saturate(1.1);
 }
 
-.drift-wall__tile.is-active .drift-wall__overlay,
 .drift-wall__tile:hover .drift-wall__overlay,
 .drift-wall__tile:focus-visible .drift-wall__overlay {
   opacity: 0;
 }
 
-.drift-wall__tile.is-active .drift-wall__info,
 .drift-wall__tile:hover .drift-wall__info,
 .drift-wall__tile:focus-visible .drift-wall__info {
   opacity: 1;
@@ -144,7 +160,7 @@
 
 .drift-wall__tile:focus-visible .drift-wall__inner {
   box-shadow:
-    0 24px 60px -18px rgba(0, 0, 0, 0.7),
+    0 24px 60px -18px rgba(0, 0, 0, 0.85),
     0 0 0 2px rgba(255, 255, 255, 0.9);
 }
 

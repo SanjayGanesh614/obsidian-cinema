@@ -36,28 +36,14 @@ export interface MediaItem {
   popularity?: number;
 }
 
-export type HolographicFinish = 'iridescent' | 'gold_leaf' | 'onyx_chrome' | 'emerald_noir';
-
-export interface TicketStub {
-  id: string;
+export interface WatchedEntry {
   mediaId: number;
-  title: string;
-  year: string;
-  posterPath: string | null;
-  backdropPath: string | null;
-  watchDate: string;
-  rating: number; // 1 to 5 stars or 1 to 10
-  review: string;
-  theatre: string;
-  seat: string;
-  finish: HolographicFinish;
-  barcode: string;
-  mediaType: MediaType;
-  runtime?: number;
-  createdAt: number;
+  rating: number; // 1 to 5 stars
+  review?: string;
+  watchDate: string; // YYYY-MM-DD
 }
 
-export type ViewMode = 'landing' | 'moods' | 'genres' | 'watched' | 'vault';
+export type ViewMode = 'landing' | 'moods' | 'genres' | 'watched';
 
 export interface MoodCategory {
   id: string;

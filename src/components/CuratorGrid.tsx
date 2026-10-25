@@ -3,7 +3,7 @@ import { MediaItem } from '../types/cinema';
 import { getPosterUrl } from '../services/tmdb';
 import { formatReleaseYear } from '../utils/pure';
 import { cinemaAudio } from '../services/audio';
-import { Star, Ticket, Bookmark, Check, Play, Info } from 'lucide-react';
+import { Star, Bookmark, Check, Play, Info } from 'lucide-react';
 
 interface CuratorGridProps {
   items: MediaItem[];
@@ -11,7 +11,7 @@ interface CuratorGridProps {
   watchedIds: Set<number>;
   onSelect: (item: MediaItem) => void;
   onToggleWatchlist: (item: MediaItem) => void;
-  onStampTicket: (item: MediaItem) => void;
+  onToggleWatched: (item: MediaItem) => void;
   onPlayTrailer: (item: MediaItem) => void;
   onHoverItem?: (item: MediaItem | null) => void;
 }
@@ -22,7 +22,7 @@ export const CuratorGrid: React.FC<CuratorGridProps> = ({
   watchedIds,
   onSelect,
   onToggleWatchlist,
-  onStampTicket,
+  onToggleWatched,
   onPlayTrailer,
   onHoverItem,
 }) => {
@@ -118,12 +118,12 @@ export const CuratorGrid: React.FC<CuratorGridProps> = ({
                       onClick={(e) => {
                         e.stopPropagation();
                         cinemaAudio.playClick();
-                        onStampTicket(item);
+                        onToggleWatched(item);
                       }}
                       className="p-2 rounded-full bg-amber-400 text-black hover:bg-amber-300 transition-all font-bold shadow-md shadow-amber-400/20"
-                      title="Stamp 3D Ticket"
+                      title="Mark as Watched"
                     >
-                      <Ticket className="w-4 h-4" />
+                      <Check className="w-4 h-4 stroke-[3]" />
                     </button>
                   </div>
                 </div>
@@ -149,9 +149,9 @@ export const CuratorGrid: React.FC<CuratorGridProps> = ({
                 </div>
 
                 {isWatched && (
-                  <div className="mt-2 flex items-center gap-1.5 text-[10px] font-mono-code text-amber-400/90 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20 w-fit">
-                    <Ticket className="w-3 h-3" />
-                    <span>Stamped</span>
+                  <div className="mt-2 flex items-center gap-1.5 text-[10px] font-mono-code text-emerald-400/90 bg-emerald-400/10 px-2 py-0.5 rounded-full border border-emerald-400/20 w-fit">
+                    <Check className="w-3 h-3 stroke-[3]" />
+                    <span>Watched</span>
                   </div>
                 )}
               </div>

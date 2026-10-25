@@ -18,7 +18,7 @@ import {
   ChevronRight, 
   Star, 
   Play, 
-  Ticket, 
+  Check, 
   Sparkles, 
   Film, 
   Tv, 
@@ -36,14 +36,14 @@ interface GenreReelSectionProps {
   items: MediaItem[];
   onSelectMovie: (item: MediaItem) => void;
   onPlayTrailer: (item: MediaItem) => void;
-  onStampTicket: (item: MediaItem) => void;
+  onToggleWatched: (item: MediaItem) => void;
 }
 
 export const GenreReelSection: React.FC<GenreReelSectionProps> = ({
   items,
   onSelectMovie,
   onPlayTrailer,
-  onStampTicket,
+  onToggleWatched,
 }) => {
   const [filterType, setFilterType] = useState<'all' | 'movie' | 'tv'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -473,12 +473,12 @@ export const GenreReelSection: React.FC<GenreReelSectionProps> = ({
                 <button
                   onClick={() => {
                     cinemaAudio.playClick();
-                    onStampTicket(activeCenterMovie);
+                    onToggleWatched(activeCenterMovie);
                   }}
-                  className="px-3.5 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-black text-xs font-mono-code font-bold flex items-center gap-1.5 transition-all shadow-lg"
+                  className="px-3.5 py-1.5 rounded-full bg-amber-400 hover:bg-amber-300 text-black text-xs font-mono-code font-bold flex items-center gap-1.5 transition-all shadow-lg cursor-pointer"
                 >
-                  <Ticket className="w-3.5 h-3.5" />
-                  <span>Stamp 3D Ticket</span>
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                  <span>Mark Watched</span>
                 </button>
 
                 <button

@@ -3,15 +3,14 @@ import assert from 'node:assert/strict';
 import {
   formatReleaseYear,
   formatRuntime,
-  generateTicketBarcode,
   filterAndSortMedia,
-  calculateVaultStats,
+  calculateWatchedStats,
   extractCinemaColor,
   mapMediaToFlexCarouselItems,
-  mapTicketsToMasonryItems,
+  mapMediaToMasonryItems,
   dampSpringStep,
 } from './pure';
-import { MediaItem, FilterState, TicketStub } from '../types/cinema';
+import { MediaItem, FilterState } from '../types/cinema';
 
 test('formatReleaseYear handles valid, missing and first_air_date', () => {
   assert.equal(formatReleaseYear({ release_date: '2024-03-01' }), '2024');
@@ -24,11 +23,6 @@ test('formatRuntime converts minutes to hours and minutes', () => {
   assert.equal(formatRuntime(45), '45m');
   assert.equal(formatRuntime(120), '2h 0m');
   assert.equal(formatRuntime(undefined), '2h 14m');
-});
-
-test('generateTicketBarcode creates formatted unique barcode', () => {
-  const barcode = generateTicketBarcode(693134, '2026-10-23');
-  assert.equal(barcode, 'OBSIDIAN-693134-20261023');
 });
 
 test('filterAndSortMedia filters by search query, mediaType, watchStatus and sorts', () => {
@@ -112,50 +106,47 @@ test('filterAndSortMedia filters by search query, mediaType, watchStatus and sor
   assert.equal(sortRes[2].id, 3); // Past Lives (7.9)
 });
 
-test('calculateVaultStats calculates correct aggregated metrics', () => {
-  const sampleTickets: TicketStub[] = [
+test('calculateWatchedStats calculates correct aggregated metrics', () => {
+  const sampleMovies: MediaItem[] = [
     {
-      id: 't1',
-      mediaId: 101,
+      id: 101,
       title: 'Oppenheimer',
-      year: '2023',
-      posterPath: '/opp.jpg',
-      backdropPath: null,
-      watchDate: '2026-08-14',
-      rating: 5,
-      review: 'Stunning cinematography.',
-      theatre: 'BFI IMAX London',
-      seat: 'Row H Seat 12',
-      finish: 'iridescent',
-      barcode: 'OBS-001',
-      mediaType: 'movie',
+      overview: 'Theoretical physicist J. Robert Oppenheimer.',
+      poster_path: '/opp.jpg',
+      backdrop_path: null,
+      vote_average: 8.9,
+      vote_count: 5000,
+      release_date: '2023-07-21',
+      media_type: 'movie',
+      genre_ids: [18, 36],
       runtime: 180,
-      createdAt: 1000,
     },
     {
-      id: 't2',
-      mediaId: 102,
-      title: 'Blade Runner 2049',
-      year: '2017',
-      posterPath: '/br.jpg',
-      backdropPath: null,
-      watchDate: '2026-09-01',
-      rating: 4.8,
-      review: 'Masterpiece of modern sci-fi.',
-      theatre: 'Alamo Drafthouse',
-      seat: 'Row D Seat 6',
-      finish: 'onyx_chrome',
-      barcode: 'OBS-002',
-      mediaType: 'movie',
-      runtime: 164,
-      createdAt: 2000,
+      id: 102,
+      title: 'Severance',
+      overview: 'Mark leads a team of office workers.',
+      poster_path: '/sev.jpg',
+      backdrop_path: null,
+      vote_average: 8.7,
+      vote_count: 2000,
+      first_air_date: '2022-02-18',
+      media_type: 'tv',
+      genre_ids: [18, 878],
+      runtime: 60,
     },
   ];
 
-  const stats = calculateVaultStats(sampleTickets);
-  assert.equal(stats.totalTickets, 2);
+  const sampleEntries = [
+    { mediaId: 101, rating: 5.0, watchDate: '2026-08-14' },
+    { mediaId: 102, rating: 4.8, watchDate: '2026-09-01' },
+  ];
+
+  const stats = calculateWatchedStats(sampleMovies, sampleEntries);
+  assert.equal(stats.totalWatched, 2);
   assert.equal(stats.averageRating, 4.9);
-  assert.equal(stats.totalRuntimeHours, 5.7);
+  assert.equal(stats.totalRuntimeHours, 4);
+  assert.equal(stats.movieCount, 1);
+  assert.equal(stats.tvCount, 1);
 });
 
 test('extractCinemaColor assigns distinct cinematic palettes', () => {
@@ -197,29 +188,25 @@ test('mapMediaToFlexCarouselItems formats items for WebGL FlexCarousel', () => {
   assert.equal(items[0].movie.id, 999);
 });
 
-test('mapTicketsToMasonryItems formats watched tickets for React Bits Masonry', () => {
-  const mockTickets: TicketStub[] = [
+test('mapMediaToMasonryItems formats watched movies for React Bits Masonry', () => {
+  const mockMovies: MediaItem[] = [
     {
-      id: 't-1',
-      mediaId: 101,
+      id: 101,
       title: 'Stalker',
-      year: '1979',
-      posterPath: '/stalker.jpg',
-      backdropPath: '/stalker_bg.jpg',
-      watchDate: '2026-10-20',
-      rating: 5.0,
-      review: 'Poetic masterpiece.',
-      theatre: 'Arthouse',
-      seat: 'Row 4',
-      finish: 'onyx_chrome',
-      barcode: 'OBS-101',
-      mediaType: 'movie',
-      createdAt: 1700000000,
+      overview: 'Poetic masterpiece.',
+      poster_path: '/stalker.jpg',
+      backdrop_path: '/stalker_bg.jpg',
+      vote_average: 8.2,
+      vote_count: 900,
+      release_date: '1979-05-13',
+      media_type: 'movie',
+      genre_ids: [878, 18],
     },
   ];
-  const masonry = mapTicketsToMasonryItems(mockTickets);
+  const sampleEntries = [{ mediaId: 101, rating: 5.0, watchDate: '2026-10-20' }];
+  const masonry = mapMediaToMasonryItems(mockMovies, sampleEntries);
   assert.equal(masonry.length, 1);
-  assert.equal(masonry[0].id, 't-1');
+  assert.equal(masonry[0].id, '101');
   assert.equal(masonry[0].title, 'Stalker');
   assert.ok(masonry[0].description.includes('5.0'));
   assert.ok(masonry[0].width > 0);

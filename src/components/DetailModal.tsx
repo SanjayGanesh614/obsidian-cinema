@@ -3,7 +3,7 @@ import { MediaItem } from '../types/cinema';
 import { fetchMediaDetails, getBackdropUrl, getPosterUrl } from '../services/tmdb';
 import { formatReleaseYear, formatRuntime, extractCinemaColor } from '../utils/pure';
 import { cinemaAudio } from '../services/audio';
-import { X, Play, Ticket, Bookmark, Check, Star, Film, User } from 'lucide-react';
+import { X, Play, Bookmark, Check, Star, Film, User } from 'lucide-react';
 
 interface DetailModalProps {
   item: MediaItem;
@@ -11,7 +11,7 @@ interface DetailModalProps {
   isWatched: boolean;
   onClose: () => void;
   onToggleWatchlist: (item: MediaItem) => void;
-  onStampTicket: (item: MediaItem) => void;
+  onToggleWatched: (item: MediaItem) => void;
   onPlayTrailer: (item: MediaItem) => void;
 }
 
@@ -21,7 +21,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
   isWatched,
   onClose,
   onToggleWatchlist,
-  onStampTicket,
+  onToggleWatched,
   onPlayTrailer,
 }) => {
   const [enrichedItem, setEnrichedItem] = useState<MediaItem>(item);
@@ -247,7 +247,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({
           <button
             onClick={() => {
               cinemaAudio.playClick();
-              onStampTicket(enrichedItem);
+              onToggleWatched(enrichedItem);
             }}
             className={`px-6 py-2.5 rounded-full font-display font-bold text-xs uppercase tracking-wider transition-all shadow-lg flex items-center gap-2 ${
               isWatched

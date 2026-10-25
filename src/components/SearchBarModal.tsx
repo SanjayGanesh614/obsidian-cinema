@@ -3,13 +3,13 @@ import { MediaItem } from '../types/cinema';
 import { searchTMDB, getPosterUrl } from '../services/tmdb';
 import { formatReleaseYear } from '../utils/pure';
 import { cinemaAudio } from '../services/audio';
-import { Search, X, Star, Bookmark, Ticket, Check, Film, Tv } from 'lucide-react';
+import { Search, X, Star, Bookmark, Check, Film, Tv } from 'lucide-react';
 
 interface SearchBarModalProps {
   onClose: () => void;
   onSelect: (item: MediaItem) => void;
   onToggleWatchlist: (item: MediaItem) => void;
-  onStampTicket: (item: MediaItem) => void;
+  onToggleWatched: (item: MediaItem) => void;
   watchlistIds: Set<number>;
   watchedIds: Set<number>;
   onResultsFetched?: (items: MediaItem[]) => void;
@@ -19,7 +19,7 @@ export const SearchBarModal: React.FC<SearchBarModalProps> = ({
   onClose,
   onSelect,
   onToggleWatchlist,
-  onStampTicket,
+  onToggleWatched,
   watchlistIds,
   watchedIds,
   onResultsFetched,
@@ -196,8 +196,7 @@ export const SearchBarModal: React.FC<SearchBarModalProps> = ({
                     <button
                       onClick={() => {
                         cinemaAudio.playClick();
-                        onStampTicket(item);
-                        onClose();
+                        onToggleWatched(item);
                       }}
                       className={`p-2 rounded-full transition-all ${
                         isWatched

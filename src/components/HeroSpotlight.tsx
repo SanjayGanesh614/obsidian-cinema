@@ -3,14 +3,14 @@ import { MediaItem } from '../types/cinema';
 import { getBackdropUrl, getPosterUrl } from '../services/tmdb';
 import { formatReleaseYear, formatRuntime, extractCinemaColor } from '../utils/pure';
 import { cinemaAudio } from '../services/audio';
-import { Play, Ticket, Bookmark, Check, Info, Star } from 'lucide-react';
+import { Play, Bookmark, Check, Info, Star } from 'lucide-react';
 
 interface HeroSpotlightProps {
   item: MediaItem;
   isInWatchlist: boolean;
   isWatched: boolean;
   onToggleWatchlist: (item: MediaItem) => void;
-  onStampTicket: (item: MediaItem) => void;
+  onToggleWatched: (item: MediaItem) => void;
   onOpenDetails: (item: MediaItem) => void;
   onPlayTrailer: (item: MediaItem) => void;
 }
@@ -20,7 +20,7 @@ export const HeroSpotlight: React.FC<HeroSpotlightProps> = ({
   isInWatchlist,
   isWatched,
   onToggleWatchlist,
-  onStampTicket,
+  onToggleWatched,
   onOpenDetails,
   onPlayTrailer,
 }) => {
@@ -105,11 +105,11 @@ export const HeroSpotlight: React.FC<HeroSpotlightProps> = ({
               <span>Watch Trailer</span>
             </button>
 
-            {/* Stamp 3D Holographic Ticket */}
+            {/* Mark Watched Toggle */}
             <button
               onClick={() => {
                 cinemaAudio.playClick();
-                onStampTicket(item);
+                onToggleWatched(item);
               }}
               className="px-6 py-3 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:brightness-110 text-black font-display font-bold text-sm tracking-wide uppercase transition-all shadow-lg shadow-amber-500/25 hover:scale-105 flex items-center gap-2"
             >
